@@ -37,13 +37,39 @@ const ClassAttendanceManagement = () => {
 
       if (classResponse.data.status === 'success') {
         const assignment = classResponse.data.data;
+        // Construct the proper classId format using consistent normalization
+        // Convert semester number to "Sem X" format, but check if already has "Sem" prefix
+        const semesterStr = typeof assignment.semester === 'number' 
+          ? `Sem ${assignment.semester}` 
+          : assignment.semester.startsWith('Sem') 
+            ? assignment.semester 
+            : `Sem ${assignment.semester}`;
+        
+        // Use the same normalization logic as backend
+        const properClassId = `${assignment.batch}_${assignment.year}_${semesterStr}_${assignment.section || 'A'}`;
+        
+        console.log('🔧 Constructed classId:', properClassId);
+        console.log('📋 Assignment data:', assignment);
+        console.log('🔍 Semester processing:', {
+          original: assignment.semester,
+          type: typeof assignment.semester,
+          converted: semesterStr
+        });
+        
         const newClassData = {
+          classId: properClassId, // Use proper classId format for the new attendance management API
           batch: assignment.batch,
           year: assignment.year,
-          semester: assignment.semester,
+          semester: semesterStr, // Use converted semester format
           section: assignment.section,
           department: user.department // Use user's department instead of departmentId
         };
+        
+        console.log('🔍 Final classData semester:', {
+          original: assignment.semester,
+          converted: semesterStr,
+          final: newClassData.semester
+        });
         
         setClassData(newClassData);
         
@@ -51,7 +77,7 @@ const ClassAttendanceManagement = () => {
         
         // Fetch students for this class using the faculty students endpoint
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(assignment.batch)}&year=${encodeURIComponent(assignment.year)}&semester=${assignment.semester}&department=${encodeURIComponent(user.department)}`,
+          url: `/api/faculty/students?batch=${encodeURIComponent(assignment.batch)}&year=${encodeURIComponent(assignment.year)}&semester=${encodeURIComponent(semesterStr)}&department=${encodeURIComponent(user.department)}`,
           method: 'GET'
         });
 
@@ -254,18 +280,25 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate }) =
       // Use today's date in ISO format for backend
       const todayISO = new Date().toISOString().split('T')[0];
       
+      // Convert absentees string to array of roll numbers
+      const absentRollNumbers = attendanceForm.absentees
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+      const requestData = {
+        classId: classData.classId,
+        date: todayISO,
+        absentStudents: absentRollNumbers,
+        notes: attendanceForm.notes || ''
+      };
+
+      console.log('📤 Sending attendance data:', requestData);
+
       const response = await apiFetch({
-        url: '/api/attendance/mark',
+        url: '/api/attendance-management/mark',
         method: 'POST',
-        data: {
-          date: todayISO, // Use today's date in ISO format
-          absentees: attendanceForm.absentees,
-          batch: classData.batch,
-          year: classData.year,
-          semester: classData.semester,
-          section: classData.section,
-          department: classData.department
-        }
+        data: requestData
       });
 
       if (response.data.success) {
@@ -276,7 +309,12 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate }) =
       }
     } catch (error) {
       console.error('Error marking attendance:', error);
-      onToast('Error marking attendance', 'error');
+      console.error('Error response:', error.response?.data);
+      onToast(
+        error.response?.data?.message || 
+        'Error marking attendance. Please try again.', 
+        'error'
+      );
     } finally {
       setAttendanceLoading(false);
     }
@@ -754,7 +792,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
         ...studentData,
         batch: classData.batch,
         year: classData.year,
-        semester: `Sem ${classData.semester}`, // Convert to 'Sem 1', 'Sem 2', etc.
+        semester: classData.semester.startsWith('Sem') ? classData.semester : `Sem ${classData.semester}`, // Ensure proper format
         section: classData.section,
         department: user.department // Use user.department instead of classData.department
       };
@@ -762,10 +800,14 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
       console.log('🔍 Adding student with data:', studentPayload);
       console.log('🔍 User department:', user.department);
       console.log('🔍 Class data:', classData);
-      console.log('🔍 Semester conversion:', `${classData.semester} -> Sem ${classData.semester}`);
+      console.log('🔍 Semester processing in handleAddStudent:', {
+        classDataSemester: classData.semester,
+        startsWithSem: classData.semester.startsWith('Sem'),
+        finalSemester: classData.semester.startsWith('Sem') ? classData.semester : `Sem ${classData.semester}`
+      });
 
       const response = await apiFetch({
-        url: '/api/faculty/students',
+        url: '/api/students',
         method: 'POST',
         data: studentPayload
       });
@@ -775,7 +817,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
         setShowAddStudent(false);
         // Refresh students list
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(classData.department)}`,
+          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
           method: 'GET'
         });
         if (studentsResponse.data.success) {
@@ -817,7 +859,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
     try {
       setLoading(true);
       const response = await apiFetch({
-        url: `/api/faculty/students/${studentId}`,
+        url: `/api/students/${studentId}`,
         method: 'PUT',
         data: studentData
       });
@@ -827,7 +869,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
         setEditingStudent(null);
         // Refresh students list
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(classData.department)}`,
+          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
           method: 'GET'
         });
         if (studentsResponse.data.success) {
@@ -858,7 +900,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
         onToast('Student deleted successfully!', 'success');
         // Refresh students list
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(classData.department)}`,
+          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
           method: 'GET'
         });
         if (studentsResponse.data.success) {
@@ -887,7 +929,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
     // Refresh the students list after bulk upload
     try {
       const studentsResponse = await apiFetch({
-        url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(classData.department)}`,
+        url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
         method: 'GET'
       });
       if (studentsResponse.data.success) {
@@ -1026,7 +1068,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
             year: classData.year, 
             semester: classData.semester, 
             section: classData.section || 'A', 
-            department: classData.department 
+            department: user.department 
           }}
         />
       )}

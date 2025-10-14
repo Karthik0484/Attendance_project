@@ -119,4 +119,7 @@ export const useClass = () => {
   return context;
 };
 
+// Alias for useClassContext for backward compatibility
+export const useClassContext = useClass;
+
 export default ClassContext;

@@ -449,8 +449,13 @@ router.post('/mark', authenticate, facultyAndAbove, [
       }
     }
 
-    // Fetch all students in the class for the same department
-    const students = await Student.find({ classAssigned, department: currentUser.department, status: 'active' });
+    // Fetch all students in the class for the same department that were created by current faculty
+    const students = await Student.find({ 
+      classAssigned, 
+      department: currentUser.department, 
+      createdBy: currentUser._id, // Only show students created by current faculty
+      status: 'active' 
+    });
     if (!students || students.length === 0) {
       return res.status(404).json({ status: 'error', message: 'No students found for this class' });
     }

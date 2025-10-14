@@ -9,7 +9,8 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import { authenticate, facultyAndAbove } from '../middleware/auth.js';
 import { resolveFacultyId, validateFacultyClassBinding, parseClassId, createAuditLog } from '../services/facultyResolutionService.js';
-import { bulkCreateStudentsWithStandardizedData } from '../services/studentCreationService.js';
+// Removed old services - using unified service only
+import { bulkCreateOrUpdateStudents } from '../services/unifiedStudentService.js';
 import Student from '../models/Student.js';
 import User from '../models/User.js';
 import Faculty from '../models/Faculty.js';
@@ -184,7 +185,7 @@ const createUploadLog = async (logData) => {
 // @desc    Upload students in bulk
 // @route   POST /api/students/bulk-upload
 // @access  Faculty and above
-router.post('/bulk-upload', authenticate, facultyAndAbove, upload.single('file'), [
+router.post('/', authenticate, facultyAndAbove, upload.single('file'), [
   body('batch').notEmpty().withMessage('Batch is required'),
   body('year').notEmpty().withMessage('Year is required'),
   body('semester').notEmpty().withMessage('Semester is required'),
@@ -405,31 +406,27 @@ router.post('/bulk-upload', authenticate, facultyAndAbove, upload.single('file')
     
     console.log(`📊 Validation results: ${validStudents.length} valid, ${invalidStudents.length} invalid`);
     
-    // Use standardized bulk creation service
-    const result = await bulkCreateStudentsWithStandardizedData({
-      currentUser,
-      studentsData: validStudents,
-      classContext: {
-        batch,
-        year: normalizedYear,
-        semester: normalizedSemester,
-        section: section || 'A',
-        department: currentUser.department
-      }
-    });
+    // Use unified bulk creation service
+    const classContext = {
+      batchYear: batch,
+      year: normalizedYear,
+      semesterName: normalizedSemester,
+      section: section || 'A',
+      department: currentUser.department,
+      facultyId: facultyId
+    };
+
+    const result = await bulkCreateOrUpdateStudents(
+      validStudents,
+      classContext,
+      facultyId,
+      currentUser._id
+    );
     
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        message: result.error.message,
-        details: result.error.details
-      });
-    }
-    
-    const { successful, failed } = result.data;
     const processingTime = Date.now() - startTime;
-    const addedCount = successful.length;
-    const errorCount = failed.length + invalidStudents.length;
+    const addedCount = result.summary.created + result.summary.updated;
+    const skippedCount = result.summary.skipped;
+    const errorCount = result.summary.failed + invalidStudents.length;
     
     // Determine upload status
     let uploadStatus = 'success';
@@ -452,20 +449,25 @@ router.post('/bulk-upload', authenticate, facultyAndAbove, upload.single('file')
       fileSize: req.file.size,
       totalRecords: students.length,
       addedCount,
-      skippedCount: 0,
+      skippedCount,
       errorCount,
-      addedStudents: successful.map(s => ({
+      addedStudents: result.successful.map(s => ({
         rollNumber: s.student.rollNumber,
         name: s.student.name,
         email: s.student.email
       })),
-      skippedStudents: [],
+      skippedStudents: result.skipped.map(s => ({
+        rollNumber: s.studentData.rollNumber || 'N/A',
+        name: s.studentData.name || 'N/A',
+        email: s.studentData.email || 'N/A',
+        reason: s.message
+      })),
       errorStudents: [
-        ...failed.map(s => ({
+        ...result.failed.map(s => ({
           rollNumber: s.studentData.rollNumber || 'N/A',
           name: s.studentData.name || 'N/A',
           email: s.studentData.email || 'N/A',
-          error: s.error.message
+          error: s.error
         })),
         ...invalidStudents.map(s => ({
           rollNumber: s.data.rollNumber || 'N/A',
@@ -489,7 +491,7 @@ router.post('/bulk-upload', authenticate, facultyAndAbove, upload.single('file')
       source,
       userId: currentUser._id,
       studentCount: addedCount,
-      studentIds: successful.map(s => s.student._id),
+      studentIds: result.successful.map(s => s.student._id),
       details: {
         batch,
         year: normalizedYear,
@@ -540,22 +542,26 @@ router.post('/bulk-upload', authenticate, facultyAndAbove, upload.single('file')
       summary: {
         totalRecords: students.length,
         addedCount,
-        skippedCount: 0,
+        skippedCount,
         errorCount
       },
-      addedStudents: successful.map(s => ({
+      addedStudents: result.successful.map(s => ({
         rollNumber: s.student.rollNumber,
         name: s.student.name,
         email: s.student.email
       })),
-      skippedStudents: [],
+      skippedStudents: result.skipped.map(s => ({
+        rollNumber: s.studentData.rollNumber || 'N/A',
+        name: s.studentData.name || 'N/A',
+        email: s.studentData.email || 'N/A',
+        reason: s.message
+      })),
       errorStudents: [
-        ...failed.map(s => ({
-          rowIndex: s.index,
+        ...result.failed.map(s => ({
           rollNumber: s.studentData.rollNumber || 'N/A',
           name: s.studentData.name || 'N/A',
           email: s.studentData.email || 'N/A',
-          errors: [s.error.message]
+          errors: [s.error]
         })),
         ...invalidStudents.map(s => ({
           rowIndex: s.rowIndex,

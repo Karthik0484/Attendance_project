@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import Attendance from '../models/Attendance.js';
 import { authenticate, facultyAndAbove } from '../middleware/auth.js';
 import { resolveFacultyId, validateFacultyClassBinding, createAuditLog } from '../services/facultyResolutionService.js';
+import { getStudentsForFaculty, createOrUpdateStudent } from '../services/unifiedStudentService.js';
 
 const router = express.Router();
 
@@ -75,163 +76,56 @@ router.get('/', authenticate, facultyAndAbove, async (req, res) => {
     const normalizedYear = normalizeYear(year);
     const normalizedSemester = normalizeSemester(semester);
 
-    // Verify faculty is class advisor for this class
-    const faculty = await Faculty.findOne({
-      userId: req.user._id,
-      is_class_advisor: true,
-      batch,
+    // Use unified service to fetch students
+    const classContext = {
+      batchYear: batch,
       year: normalizedYear,
-      semester: parseInt(String(semester), 10) || parseInt(String(normalizedSemester).match(/\d+/)?.[0] || '0', 10),
-      ...(section ? { section } : {}),
-      department: req.user.department,
-      status: 'active'
-    });
+      semesterName: normalizedSemester,
+      section: section || 'A',
+      department: req.user.department
+    };
 
-    if (!faculty) {
-      return res.status(403).json({
+    const result = await getStudentsForFaculty(req.user._id, classContext);
+
+    if (!result.success) {
+      return res.status(500).json({
         success: false,
-        message: 'You are not authorized to view students for this class'
+        message: result.error?.message || 'Error fetching students'
       });
     }
 
-    // Build query with classId for better filtering - same format as bulk upload
-    // Format: batch_year_semester_section (e.g., "2024-2028_1st Year_Sem 1_A")
+    const students = result.students;
     const classId = `${batch}_${normalizedYear}_${normalizedSemester}_${section || 'A'}`;
-    
-    console.log('🔍 Fetching students with query:', {
-      batch,
-      year: normalizedYear,
-      semester: normalizedSemester,
-      department: req.user.department,
-      facultyId: faculty._id,
-      section: section || 'A',
-      classId
-    });
-    
-    console.log('👤 Faculty details:', {
-      id: faculty._id,
-      name: faculty.name,
-      batch: faculty.batch,
-      year: faculty.year,
-      department: faculty.department
-    });
-    
-    // Build comprehensive query with faculty-class binding integrity
-    // First try with classId, then fallback to individual fields
-    let query = {
-      batch,
-      year: normalizedYear,
-      semester: normalizedSemester,
-      department: req.user.department,
-      facultyId: faculty._id, // Only show students created by this faculty
-      ...(section ? { section } : {}), // Add section filter if provided
-      status: 'active' // Exclude soft-deleted students
-    };
-    
-    // Try to find students with classId first
-    let students = await Student.find({
-      ...query,
-      classId: classId
-    })
-      .select('userId rollNumber name email mobile year semester batch department classId facultyId createdBy createdAt')
-      .sort({ rollNumber: 1 });
-
-    // If no students found with classId, try without classId filter (for backward compatibility)
-    if (students.length === 0) {
-      console.log('⚠️ No students found with classId, trying without classId filter...');
-      students = await Student.find(query)
-        .select('userId rollNumber name email mobile year semester batch department classId facultyId createdBy createdAt')
-        .sort({ rollNumber: 1 });
-    }
-    
-    console.log('🔍 Final query:', JSON.stringify(query, null, 2));
 
     console.log(`📊 Found ${students.length} students for class ${classId}`);
     
-    if (students.length > 0) {
-      console.log('📋 Sample students found:');
-      students.slice(0, 3).forEach((student, index) => {
-        console.log(`  ${index + 1}. ${student.rollNumber} - ${student.name} (classId: ${student.classId})`);
-      });
-    } else {
-      console.log('❌ No students found. Checking for students with similar criteria...');
-      
-      // Check for students with similar criteria
-      const similarStudents = await Student.find({
-        batch,
-        department: req.user.department,
-        facultyId: faculty._id,
-        status: 'active'
-      }).limit(5);
-      
-      console.log(`🔍 Found ${similarStudents.length} students with similar criteria:`);
-      similarStudents.forEach((student, index) => {
-        console.log(`  ${index + 1}. ${student.rollNumber} - ${student.name}`);
-        console.log(`     ClassId: ${student.classId || 'NULL'}`);
-        console.log(`     Year: ${student.year}, Semester: ${student.semester}, Section: ${student.section || 'NULL'}`);
-      });
-      
-      // Also check for students with exact batch/year/semester but different faculty
-      const exactMatchStudents = await Student.find({
-        batch,
-        year: normalizedYear,
-        semester: normalizedSemester,
-        department: req.user.department,
-        status: 'active'
-      }).limit(5);
-      
-      console.log(`🔍 Found ${exactMatchStudents.length} students with exact batch/year/semester match:`);
-      exactMatchStudents.forEach((student, index) => {
-        console.log(`  ${index + 1}. ${student.rollNumber} - ${student.name}`);
-        console.log(`     FacultyId: ${student.facultyId} (Expected: ${faculty._id})`);
-        console.log(`     ClassId: ${student.classId || 'NULL'}`);
-      });
-    }
-
-    // Validate data integrity before mapping (more flexible for backward compatibility)
-    const validStudents = students.filter(student => {
-      const isValid = student.rollNumber && student.name && student.email;
-      if (!isValid) {
-        console.warn('Invalid student data found in database:', {
-          id: student._id,
-          rollNumber: student.rollNumber,
-          name: student.name,
-          email: student.email,
-          classId: student.classId,
-          facultyId: student.facultyId
-        });
-      }
-      return isValid;
-    });
-    
-    if (validStudents.length !== students.length) {
-      console.warn(`Filtered out ${students.length - validStudents.length} invalid students from database`);
-    }
-    
-    // Map to expected response shape
+    // Map to expected response shape using unified format
     const yearNumber = parseYearNumber(normalizedYear);
     const semesterNumber = parseSemesterNumber(normalizedSemester);
-    const data = validStudents.map(s => ({
-      id: s._id, // Use Student document ID for API consistency
-      _id: s._id, // Also include _id for compatibility
-      userId: s.userId, // Include userId for reference
+    const data = students.map(s => ({
+      id: s.id,
+      _id: s._id,
+      userId: s.userId,
       roll_number: s.rollNumber,
-      rollNumber: s.rollNumber, // Include both formats
+      rollNumber: s.rollNumber,
       full_name: s.name,
-      name: s.name, // Include both formats
+      name: s.name,
       email: s.email,
       mobile_number: s.mobile || '',
-      mobile: s.mobile || '', // Include both formats
+      mobile: s.mobile || '',
       department: s.department,
-      batch: s.batch,
+      batchYear: s.batchYear,
       year: yearNumber,
       semester: semesterNumber,
-      section: faculty?.section || undefined,
-      classId: s.classId, // Include classId for validation
-      facultyId: s.facultyId, // Include facultyId for validation
-      createdBy: s.createdBy, // Include createdBy for validation
-      createdAt: s.createdAt, // Include createdAt for validation
-      parentContact: s.parentContact || '' // Include parentContact
+      section: s.section,
+      classId: s.currentSemester?.classAssigned || '',
+      facultyId: s.currentSemester?.facultyId || '',
+      createdBy: s.createdBy,
+      createdAt: s.createdAt,
+      parentContact: s.parentContact || '',
+      address: s.address || '',
+      dateOfBirth: s.dateOfBirth,
+      emergencyContact: s.emergencyContact
     }));
 
     return res.status(200).json({
@@ -370,57 +264,39 @@ router.post('/', authenticate, facultyAndAbove, [
       }
     });
 
-    // Check email uniqueness across users
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Email already in use' });
-    }
-
-    // Check roll number uniqueness within batch
-    const existingStudent = await Student.findOne({ rollNumber, batch });
-    if (existingStudent) {
-      return res.status(400).json({ success: false, message: 'Roll number already exists in this batch' });
-    }
-
-    // Optional: ensure mobile uniqueness among students
-    if (mobile) {
-      const existingMobile = await Student.findOne({ mobile });
-      if (existingMobile) {
-        return res.status(400).json({ success: false, message: 'Mobile number already in use' });
-      }
-    }
-
-    // Build class string for User schema (required for students)
-    const userClassString = `${batch}, ${normalizedYear}, ${normalizedSemester}`;
-
-    // Create User account (password hashed by pre-save hook)
-    const user = new User({
+    // Prepare student data for unified service
+    const studentData = {
       name,
       email,
-      password,
-      role: 'student',
-      department: req.user.department,
-      class: userClassString,
-      createdBy: req.user._id
-    });
-    await user.save();
-
-    // Create Student profile
-    const student = new Student({
-      userId: user._id,
       rollNumber,
-      name,
-      email,
       mobile,
-      batch,
+      password,
+      parentContact: bodyData.parentContact || '',
+      address: bodyData.address || '',
+      dateOfBirth: bodyData.dateOfBirth || null,
+      emergencyContact: bodyData.emergencyContact || null
+    };
+
+    // Prepare class context for unified service
+    const classContext = {
+      batchYear: batch,
       year: normalizedYear,
-      semester: normalizedSemester,
-      classAssigned: '1A', // legacy field required by schema; not used in this flow
-      facultyId: facultyId,
+      semesterName: normalizedSemester,
+      section: bodyData.section || 'A',
       department: req.user.department,
-      createdBy: req.user._id
-    });
-    await student.save();
+      facultyId: facultyId
+    };
+
+    // Use unified service to create or update student
+    const result = await createOrUpdateStudent(studentData, classContext, facultyId, req.user._id);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+        details: result.conflictDetails || null
+      });
+    }
 
     // Create final audit log with student details
     await createAuditLog({
@@ -430,7 +306,7 @@ router.post('/', authenticate, facultyAndAbove, [
       source,
       userId: req.user._id,
       studentCount: 1,
-      studentIds: [student._id],
+      studentIds: [result.student._id],
       details: {
         batch,
         year: normalizedYear,
@@ -439,25 +315,30 @@ router.post('/', authenticate, facultyAndAbove, [
         department: req.user.department,
         facultyName: faculty.name,
         validationPassed: true,
-        studentName: student.name,
-        studentRollNumber: student.rollNumber
+        studentName: result.student.name,
+        studentRollNumber: result.student.rollNumber
       },
       status: 'success'
     });
 
     const response = {
-      id: student._id,
-      roll_number: student.rollNumber,
-      full_name: student.name,
-      email: student.email,
-      mobile_number: student.mobile || '',
-      department: student.department,
-      batch: student.batch,
+      id: result.student._id,
+      roll_number: result.student.rollNumber,
+      full_name: result.student.name,
+      email: result.student.email,
+      mobile_number: result.student.mobile || '',
+      department: result.student.department,
+      batchYear: result.student.batchYear,
       year: yearNumber,
-      semester: semesterNumber
+      semester: semesterNumber,
+      action: result.action
     };
 
-    return res.status(201).json({ success: true, message: 'Student created successfully', data: response });
+    const message = result.action === 'created' ? 'Student created successfully' :
+                   result.action === 'updated' ? 'Student semester added successfully' :
+                   'Student processed successfully';
+
+    return res.status(201).json({ success: true, message, data: response });
   } catch (error) {
     console.error('POST /api/students error:', error);
     if (error?.code === 11000) {
@@ -915,7 +796,12 @@ router.get('/class/:classAssigned', async (req, res) => {
   try {
     const { classAssigned } = req.params;
     const currentUser = req.user;
-    const students = await Student.find({ classAssigned, department: currentUser.department, status: 'active' })
+    const students = await Student.find({ 
+      classAssigned, 
+      department: currentUser.department, 
+      createdBy: currentUser._id, // Only show students created by current faculty
+      status: 'active' 
+    })
       .select('rollNumber name email mobile year semester')
       .sort({ rollNumber: 1 });
 
@@ -1169,10 +1055,11 @@ router.get('/classes/:classId/students', async (req, res) => {
 
     console.log(`Fetching students for class: ${classId}, department: ${currentUser.department}`);
 
-    // Authorization: Faculty can only view students from their department
+    // Authorization: Faculty can only view students from their department that they created
     const students = await Student.find({ 
       classAssigned: classId, 
       department: currentUser.department, 
+      createdBy: currentUser._id, // Only show students created by current faculty
       status: 'active' 
     })
     .select('rollNumber name department mobile semester year')

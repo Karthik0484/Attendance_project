@@ -81,3 +81,39 @@ export const formatDateForDisplay = (dateString) => {
     weekday: 'long'
   });
 };
+
+/**
+ * Gets the current date in IST timezone
+ * @returns {Date} Current date in IST
+ */
+export const getISTDate = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60; // IST is UTC+5:30
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  return new Date(utc + (istOffset * 60000));
+};
+
+/**
+ * Normalizes a date to UTC midnight for consistent storage
+ * @param {string|Date} dateInput - Date input
+ * @returns {Date} Date normalized to UTC midnight
+ */
+export const normalizeDateToUTC = (dateInput) => {
+  let date;
+  
+  if (typeof dateInput === 'string') {
+    date = new Date(dateInput);
+  } else if (dateInput instanceof Date) {
+    date = new Date(dateInput);
+  } else {
+    throw new Error('Invalid date input type');
+  }
+  
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date');
+  }
+  
+  // Set to UTC midnight
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};

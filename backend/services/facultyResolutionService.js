@@ -131,84 +131,54 @@ export async function validateFacultyClassBinding(facultyId, classId, classMetad
       return false;
     }
 
-    // Check if faculty matches class metadata
+    // Check if faculty is assigned to this specific class
     const { batch, year, semester, section, department } = classMetadata;
     
-    if (batch && faculty.batch !== batch) {
-      console.error('❌ Faculty batch mismatch:', faculty.batch, 'vs', batch);
-      return false;
+    // First check ClassAssignment model for this specific class
+    const ClassAssignment = (await import('../models/ClassAssignment.js')).default;
+    const classAssignment = await ClassAssignment.findOne({
+      facultyId: facultyId,
+      batch: batch,
+      year: year,
+      semester: typeof semester === 'string' ? parseInt(semester.replace(/\D/g, '')) : semester,
+      section: section || 'A',
+      active: true
+    });
+
+    if (classAssignment) {
+      console.log('✅ Faculty is assigned to this class via ClassAssignment');
+      return true;
     }
 
-    if (year && faculty.year !== year) {
-      // Try to normalize year formats for comparison
-      const normalizeYearForComparison = (yr) => {
-        if (typeof yr === 'string') {
-          // Handle variations like "1st Year", "1st", "1"
-          const normalized = yr.toLowerCase().trim();
-          if (normalized.includes('1st') || normalized === '1') return '1st Year';
-          if (normalized.includes('2nd') || normalized === '2') return '2nd Year';
-          if (normalized.includes('3rd') || normalized === '3') return '3rd Year';
-          if (normalized.includes('4th') || normalized === '4') return '4th Year';
-          return yr;
-        }
-        return yr;
-      };
-      
-      const normalizedFacultyYear = normalizeYearForComparison(faculty.year);
-      const normalizedInputYear = normalizeYearForComparison(year);
-      
-      console.log('🔍 Year normalization:', {
-        facultyOriginal: faculty.year,
-        facultyNormalized: normalizedFacultyYear,
-        inputOriginal: year,
-        inputNormalized: normalizedInputYear
-      });
-      
-      if (normalizedFacultyYear !== normalizedInputYear) {
-        console.error('❌ Faculty year mismatch after normalization:', normalizedFacultyYear, 'vs', normalizedInputYear);
-        return false;
-      }
+    // If no specific class assignment found, check if faculty is a general class advisor
+    // and allow them to upload students for any class in their department
+    console.log('⚠️ No specific class assignment found, checking if faculty is authorized for this class...');
+    
+    // Check if faculty is assigned to any class with the same year and semester
+    const anyClassAssignment = await ClassAssignment.findOne({
+      facultyId: facultyId,
+      year: year,
+      semester: typeof semester === 'string' ? parseInt(semester.replace(/\D/g, '')) : semester,
+      section: section || 'A',
+      active: true
+    });
+
+    if (anyClassAssignment) {
+      console.log('✅ Faculty is assigned to a class with same year/semester, allowing upload');
+      return true;
     }
 
-    if (semester && faculty.semester !== semester) {
-      // Try to normalize semester formats for comparison
-      const normalizeSemesterForComparison = (sem) => {
-        if (typeof sem === 'number') return sem;
-        if (typeof sem === 'string') {
-          const match = sem.match(/\d+/);
-          return match ? parseInt(match[0], 10) : sem;
-        }
-        return sem;
-      };
-      
-      const normalizedFacultySemester = normalizeSemesterForComparison(faculty.semester);
-      const normalizedInputSemester = normalizeSemesterForComparison(semester);
-      
-      console.log('🔍 Semester normalization:', {
-        facultyOriginal: faculty.semester,
-        facultyNormalized: normalizedFacultySemester,
-        inputOriginal: semester,
-        inputNormalized: normalizedInputSemester
-      });
-      
-      if (normalizedFacultySemester !== normalizedInputSemester) {
-        console.error('❌ Faculty semester mismatch after normalization:', normalizedFacultySemester, 'vs', normalizedInputSemester);
-        return false;
-      }
+    // If still no assignment found, check if faculty is a general class advisor
+    // and allow them to upload students for any class in their department
+    if (faculty.is_class_advisor && faculty.department === department) {
+      console.log('✅ Faculty is a class advisor in the same department, allowing upload');
+      return true;
     }
 
-    if (section && faculty.section !== section) {
-      console.error('❌ Faculty section mismatch:', faculty.section, 'vs', section);
-      return false;
-    }
-
-    if (department && faculty.department !== department) {
-      console.error('❌ Faculty department mismatch:', faculty.department, 'vs', department);
-      return false;
-    }
-
-    console.log('✅ Faculty-class binding validated successfully');
-    return true;
+    // If we reach here, the faculty is not specifically assigned to this class
+    // but we've already checked if they're a general class advisor
+    console.log('❌ Faculty is not authorized for this specific class');
+    return false;
 
   } catch (error) {
     console.error('❌ Error validating faculty-class binding:', error);

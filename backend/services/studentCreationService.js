@@ -8,6 +8,8 @@ import Student from '../models/Student.js';
 import User from '../models/User.js';
 import Faculty from '../models/Faculty.js';
 import ClassAssignment from '../models/ClassAssignment.js';
+import { normalizeClassId } from '../utils/classIdNormalizer.js';
+import { getFacultyClassAssignment } from './facultyClassMappingService.js';
 
 /**
  * Standardized student creation with consistent facultyId and classId assignment
@@ -216,8 +218,13 @@ async function getStandardizedClassData(facultyData, classContext) {
     // Always use the facultyId from the authorization result
     const standardizedFacultyId = facultyId;
     
-    // Generate standardized classId
-    const classId = `${classContext.batch}_${classContext.year}_${classContext.semester}_${classContext.section || 'A'}`;
+    // Generate standardized classId using the normalizer
+    const classId = normalizeClassId({
+      batch: classContext.batch,
+      year: classContext.year,
+      semester: classContext.semester,
+      section: classContext.section || 'A'
+    });
     
     // Generate classAssigned format
     const yearNumber = classContext.year.includes('1st') ? '1' : 

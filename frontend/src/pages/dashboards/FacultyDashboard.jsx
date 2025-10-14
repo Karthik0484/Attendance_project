@@ -179,12 +179,20 @@ const FacultyDashboard = () => {
                         <div className="text-sm text-gray-500">
                           Class Advisor
                         </div>
-                        <button
-                          onClick={() => handleManageClass(cls.classId)}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
-                        >
-                          Manage Class
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => navigate('/attendance-management')}
+                            className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            Attendance
+                          </button>
+                          <button
+                            onClick={() => handleManageClass(cls.classId)}
+                            className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                          >
+                            Manage
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ClassProvider } from './context/ClassContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
 import Login from './pages/Login';
@@ -8,6 +9,7 @@ import PrincipalDashboard from './pages/dashboards/PrincipalDashboard';
 import HODDashboard from './pages/dashboards/HODDashboard';
 import FacultyDashboard from './pages/dashboards/FacultyDashboard';
 import ClassAttendanceManagement from './pages/ClassAttendanceManagement';
+import AttendanceManagement from './pages/AttendanceManagement';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
 import ClassManagementPage from './pages/ClassManagementPage';
 import ClassSelectionPage from './pages/ClassSelectionPage';
@@ -65,6 +67,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['faculty']}>
                   <ClassAttendanceManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/attendance-management" 
+              element={
+                <ProtectedRoute allowedRoles={['faculty']}>
+                  <AttendanceManagement />
                 </ProtectedRoute>
               } 
             />
@@ -151,12 +161,14 @@ const AppRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ScrollToTop />
-        <div className="App">
-          <AppRoutes />
-        </div>
-      </Router>
+      <ClassProvider>
+        <Router>
+          <ScrollToTop />
+          <div className="App">
+            <AppRoutes />
+          </div>
+        </Router>
+      </ClassProvider>
     </AuthProvider>
   );
 }

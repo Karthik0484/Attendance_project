@@ -387,65 +387,68 @@ const BulkUploadModal = ({ isOpen, onClose, onStudentsAdded, classInfo }) => {
         });
       }, 200);
       
-      // Use direct fetch for file uploads as apiFetch might not handle multipart correctly
-      const accessToken = localStorage.getItem('accessToken');
-      const response = await fetch('/api/students/bulk-upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: formData
+      // Use apiFetch with FormData for proper authentication handling
+      console.log('🚀 Attempting bulk upload to:', '/api/students/bulk-upload');
+      console.log('📋 Form data contents:', {
+        file: file?.name,
+        batch: classInfo.batch,
+        year: classInfo.year,
+        semester: classInfo.semester,
+        section: classInfo.section,
+        department: classInfo.department
       });
       
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(responseData.message || `Upload failed with status ${response.status}`);
-      }
+      const response = await apiFetch({
+        url: '/api/students/bulk-upload',
+        method: 'POST',
+        data: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
       
       clearInterval(progressInterval);
       setUploadProgress(100);
       
-      if (responseData.success) {
-        setUploadResults(responseData);
+      if (response.data.success) {
+        onStudentsAdded();
         setStep(5);
-        
-        // Show success message with detailed summary
-        const { addedCount, skippedCount, errorCount } = responseData.summary;
-        let message = `Upload completed successfully! `;
-        
-        if (addedCount > 0) {
-          message += `✅ ${addedCount} students added. `;
-        }
-        if (skippedCount > 0) {
-          message += `⚠️ ${skippedCount} students skipped (already exist). `;
-        }
-        if (errorCount > 0) {
-          message += `❌ ${errorCount} students had errors. `;
-        }
-        
-        if (addedCount === 0 && skippedCount === 0 && errorCount > 0) {
-          message = 'No students were added. Please verify your CSV format and try again.';
-        }
-        
-        setToast({
-          show: true,
-          message,
-          type: addedCount > 0 ? 'success' : 'warning'
+        setUploadResults({
+          success: true,
+          message: response.data.message,
+          summary: response.data.summary,
+          addedStudents: response.data.addedStudents || [],
+          skippedStudents: response.data.skippedStudents || [],
+          errorStudents: response.data.errorStudents || []
         });
-        
-        // Refresh students list with upload results
-        if (onStudentsAdded) {
-          onStudentsAdded(responseData);
-        }
       } else {
-        throw new Error(responseData.message || 'Upload failed');
+        throw new Error(response.data.message || 'Upload failed');
       }
     } catch (error) {
       console.error('Upload error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url
+      });
+      
+      let errorMessage = 'Upload failed. Please try again.';
+      
+      if (error.response?.status === 404) {
+        errorMessage = 'Server endpoint not found. Please check if the server is running.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setToast({
         show: true,
-        message: error.message || 'Upload failed. Please try again.',
+        message: errorMessage,
         type: 'error'
       });
       setStep(1);

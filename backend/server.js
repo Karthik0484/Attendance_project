@@ -5,6 +5,7 @@ import connectDB from './config/database.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import attendanceRoutes from './routes/attendance.js';
+import attendanceManagementRoutes from './routes/attendanceManagement.js';
 import facultyRoutes from './routes/faculty.js';
 import studentRoutes from './routes/student.js';
 import reportRoutes from './routes/report.js';
@@ -22,7 +23,9 @@ import Faculty from './models/Faculty.js';
 dotenv.config();
 
 // Connect to database
+console.log('🔌 Connecting to database...');
 connectDB();
+console.log('✅ Database connection initiated');
 
 // Ensure indexes are in sync with schema (drops obsolete indexes like rollNumber_1)
 try {
@@ -60,18 +63,22 @@ app.use((req, res, next) => {
 });
 
 // Routes
+console.log('🔧 Registering routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance-management', attendanceManagementRoutes);
 app.use('/api/faculty', facultyRoutes);
 app.use('/api/student', studentRoutes);
+console.log('🔧 Registering bulk upload routes at /api/students/bulk-upload');
+app.use('/api/students/bulk-upload', studentBulkUploadRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/classes', studentRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/bulk-upload', bulkUploadRoutes);
-app.use('/api/students', studentBulkUploadRoutes);
 app.use('/api/class-assignment', classAssignmentRoutes);
+console.log('✅ All routes registered successfully');
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -80,6 +87,15 @@ app.get('/api/health', (req, res) => {
     message: 'Attendance Tracker API is running',
     timestamp: new Date().toISOString(),
     version: '1.0.0'
+  });
+});
+
+// Test route for bulk upload endpoint
+app.get('/api/students/bulk-upload/test', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Bulk upload endpoint is accessible',
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -132,6 +148,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+console.log('🚀 Starting server...');
 app.listen(PORT, () => {
   console.log(`🚀 Attendance Tracker API Server`);
   console.log(`📡 Running on port ${PORT}`);
