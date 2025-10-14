@@ -220,6 +220,7 @@ const ClassAttendanceManagement = () => {
             students={students} 
             onToast={showToast}
             onStudentsUpdate={setStudents}
+            navigate={navigate}
           />
         )}
         {activeTab === 'edit' && (
@@ -250,6 +251,7 @@ const ClassAttendanceManagement = () => {
             onToast={showToast}
             onStudentsUpdate={setStudents}
             user={user}
+            navigate={navigate}
           />
         )}
       </div>
@@ -258,7 +260,7 @@ const ClassAttendanceManagement = () => {
 };
 
 // Mark Attendance Tab Component
-const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate }) => {
+const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, navigate }) => {
   const [attendanceForm, setAttendanceForm] = useState({
     absentees: ''
   });
@@ -410,7 +412,28 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate }) =
                       {student.rollNumber}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {student.name}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const studentId = student._id || student.id;
+                            console.log('🔗 Navigating to student profile:', studentId);
+                            console.log('👤 Student data:', student);
+                            console.log('🔍 Current URL:', window.location.href);
+                            console.log('🔍 Target URL:', `/student-detail/${studentId}`);
+                            
+                            // Test if navigate function is working
+                            try {
+                              navigate(`/student-detail/${studentId}`);
+                              console.log('✅ Navigation called successfully');
+                            } catch (error) {
+                              console.error('❌ Navigation error:', error);
+                            }
+                          }}
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        >
+                          {student.name}
+                        </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {student.email}
@@ -772,7 +795,7 @@ const AttendanceReportTab = ({ classData, students, onToast }) => {
 };
 
 // Student Management Tab Component
-const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, user }) => {
+const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, user, navigate }) => {
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -1018,7 +1041,28 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
                       {student.rollNumber}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student.name}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const studentId = student._id || student.id;
+                          console.log('🔗 Navigating to student profile from Student Management:', studentId);
+                          console.log('👤 Student data:', student);
+                          console.log('🔍 Current URL:', window.location.href);
+                          console.log('🔍 Target URL:', `/student-detail/${studentId}`);
+                          
+                          // Test if navigate function is working
+                          try {
+                            navigate(`/student-detail/${studentId}`);
+                            console.log('✅ Navigation called successfully');
+                          } catch (error) {
+                            console.error('❌ Navigation error:', error);
+                          }
+                        }}
+                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      >
+                        {student.name}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {student.email}

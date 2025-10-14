@@ -69,6 +69,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/attendance-management', attendanceManagementRoutes);
 app.use('/api/faculty', facultyRoutes);
+app.use('/api/faculty/student', studentRoutes); // Faculty student management routes
 app.use('/api/student', studentRoutes);
 console.log('🔧 Registering bulk upload routes at /api/students/bulk-upload');
 app.use('/api/students/bulk-upload', studentBulkUploadRoutes);

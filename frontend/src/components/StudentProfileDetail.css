@@ -1,0 +1,476 @@
+/* Enhanced Student Profile Styles */
+
+/* Custom animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Profile header animations */
+.profile-header {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.profile-photo {
+  animation: pulse 2s infinite;
+  margin-bottom: 1rem;
+}
+
+/* Ensure proper spacing between profile photo and name */
+.profile-header .flex-col .profile-photo {
+  margin-bottom: 2rem;
+}
+
+.profile-header .flex-col .profile-photo + div {
+  margin-top: 0;
+}
+
+/* Tab content animations */
+.tab-content {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Gradient text effect */
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .profile-header {
+    padding: 1.5rem 1rem;
+  }
+  
+  .profile-photo {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .tab-content {
+    padding: 1rem;
+  }
+  
+  .card-hover {
+    margin-bottom: 1rem;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .profile-header {
+    padding: 2rem 1.5rem;
+  }
+  
+  .tab-content {
+    padding: 1.5rem;
+  }
+}
+
+/* Loading skeleton animation */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Enhanced button styles */
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Status indicators */
+.status-present {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.status-absent {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.status-holiday {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+/* Department color schemes */
+.dept-cse {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.dept-it {
+  background: linear-gradient(135deg, #10b981, #047857);
+}
+
+.dept-ece {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+.dept-eee {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.dept-civil {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+}
+
+.dept-mechanical {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.dept-csbs {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+
+.dept-aids {
+  background: linear-gradient(135deg, #ec4899, #db2777);
+}
+
+/* Calendar specific styles */
+.calendar-day {
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-day::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.calendar-day:hover::before {
+  left: 100%;
+}
+
+.calendar-day:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.calendar-day.present {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.calendar-day.present:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
+}
+
+.calendar-day.absent {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+}
+
+.calendar-day.absent:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 6px 12px rgba(239, 68, 68, 0.4);
+}
+
+.calendar-day.od {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.calendar-day.od:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+}
+
+.calendar-day.holiday {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+}
+
+.calendar-day.holiday:hover {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  box-shadow: 0 6px 12px rgba(139, 92, 246, 0.4);
+}
+
+.calendar-day.not-marked {
+  background: linear-gradient(135deg, #d1d5db, #9ca3af);
+  box-shadow: 0 2px 4px rgba(209, 213, 219, 0.3);
+}
+
+.calendar-day.not-marked:hover {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  box-shadow: 0 6px 12px rgba(209, 213, 219, 0.4);
+}
+
+/* Compact calendar styles */
+.calendar-compact .calendar-day {
+  font-size: 0.75rem;
+  padding: 0.25rem;
+}
+
+.calendar-compact .calendar-day:hover {
+  transform: scale(1.15);
+}
+
+.calendar-compact .calendar-grid {
+  gap: 0.25rem;
+}
+
+/* Calendar navigation buttons */
+.calendar-nav-btn {
+  transition: all 0.2s ease-in-out;
+}
+
+.calendar-nav-btn:hover {
+  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Calendar legend */
+.calendar-legend {
+  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+/* Academic Cards Color Harmony */
+.academic-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.academic-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.6s;
+}
+
+.academic-card:hover::before {
+  left: 100%;
+}
+
+.academic-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Enhanced color gradients for better harmony */
+.academic-card-slate {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-color: #cbd5e1;
+}
+
+.academic-card-slate:hover {
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+}
+
+.academic-card-emerald {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border-color: #a7f3d0;
+}
+
+.academic-card-emerald:hover {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+}
+
+.academic-card-cyan {
+  background: linear-gradient(135deg, #ecfeff, #cffafe);
+  border-color: #a5f3fc;
+}
+
+.academic-card-cyan:hover {
+  background: linear-gradient(135deg, #cffafe, #a5f3fc);
+}
+
+.academic-card-amber {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-color: #fde68a;
+}
+
+.academic-card-amber:hover {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+}
+
+.academic-card-rose {
+  background: linear-gradient(135deg, #fff1f2, #fecdd3);
+  border-color: #fda4af;
+}
+
+.academic-card-rose:hover {
+  background: linear-gradient(135deg, #fecdd3, #fda4af);
+}
+
+.academic-card-violet {
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border-color: #ddd6fe;
+}
+
+.academic-card-violet:hover {
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+}
+
+/* Mobile Responsive Design */
+@media (max-width: 640px) {
+  /* Profile Header Mobile */
+  .profile-header {
+    padding: 1rem;
+    min-height: auto;
+  }
+  
+  .profile-photo {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 1.5rem;
+  }
+  
+  .profile-header .flex-col .profile-photo {
+    margin-bottom: 2rem;
+  }
+  
+  /* Calendar Mobile */
+  .calendar-grid {
+    gap: 0.25rem;
+  }
+  
+  .calendar-day {
+    font-size: 0.75rem;
+    padding: 0.25rem;
+  }
+  
+  .calendar-legend {
+    padding: 0.75rem;
+  }
+  
+  .calendar-legend > div {
+    font-size: 0.75rem;
+  }
+  
+  .academic-card {
+    padding: 1rem;
+  }
+  
+  .academic-card .w-10 {
+    width: 2rem;
+    height: 2rem;
+  }
+  
+  /* Text Sizing Mobile */
+  .text-4xl {
+    font-size: 2.5rem;
+  }
+  
+  .text-2xl {
+    font-size: 1.5rem;
+  }
+  
+  .text-xl {
+    font-size: 1.25rem;
+  }
+  
+  /* Spacing Mobile */
+  .space-y-8 > * + * {
+    margin-top: 1.5rem;
+  }
+  
+  .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+  
+  .space-y-4 > * + * {
+    margin-top: 0.75rem;
+  }
+}
+
+/* Tablet Responsive Design */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .profile-photo {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 1.5rem;
+  }
+  
+  .profile-header .flex-col .profile-photo {
+    margin-bottom: 2rem;
+  }
+}

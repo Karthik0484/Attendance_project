@@ -1246,6 +1246,366 @@ router.get('/classes/test', authenticate, facultyAndAbove, (req, res) => {
   });
 });
 
+// @desc    Get detailed student profile for faculty
+// @route   GET /api/students/:id/profile-detailed
+// @access  Faculty and above
+router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    console.log('👤 Fetching detailed student profile for ID:', id);
+    console.log('👤 Faculty:', req.user.email, 'Department:', req.user.department);
+
+    // Get student basic info with populated data
+    let student = await Student.findById(id)
+      .populate('userId', 'name email mobile')
+      .populate('createdBy', 'name email')
+      .populate('semesters.facultyId', 'name email');
+
+    if (!student) {
+      console.log('❌ Student not found for ID:', id);
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Student not found' 
+      });
+    }
+
+    // Check department access
+    if (student.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view students from your department.'
+      });
+    }
+
+    // Build date filter for attendance
+    let dateFilter = {};
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter = { $gte: start, $lte: end };
+    } else {
+      // Default to current academic year
+      const currentYear = new Date().getFullYear();
+      const academicYearStart = new Date(currentYear, 7, 1); // August 1st
+      const academicYearEnd = new Date(currentYear + 1, 6, 31); // July 31st next year
+      dateFilter = { $gte: academicYearStart, $lte: academicYearEnd };
+    }
+
+    // Get attendance records for the student
+    const studentUserId = student.userId._id;
+    const attendanceRecords = await Attendance.find({
+      studentId: studentUserId,
+      date: dateFilter
+    }).sort({ date: 1 });
+
+    // Get holidays in the same date range
+    const Holiday = (await import('../models/Holiday.js')).default;
+    
+    let holidayDateFilter = {};
+    if (startDate && endDate) {
+      const start = new Date(startDate).toISOString().split('T')[0];
+      const end = new Date(endDate).toISOString().split('T')[0];
+      holidayDateFilter = { $gte: start, $lte: end };
+    } else {
+      const currentYear = new Date().getFullYear();
+      const academicYearStart = `${currentYear}-08-01`;
+      const academicYearEnd = `${currentYear + 1}-07-31`;
+      holidayDateFilter = { $gte: academicYearStart, $lte: academicYearEnd };
+    }
+    
+    const holidays = await Holiday.find({
+      department: student.department,
+      holidayDate: holidayDateFilter,
+      isActive: true
+    }).select('holidayDate reason');
+
+    // Create holiday dates set
+    const holidayDates = new Set(holidays.map(h => 
+      typeof h.holidayDate === 'string' ? h.holidayDate : h.holidayDate.toISOString().split('T')[0]
+    ));
+
+    // Calculate attendance statistics
+    const workingDaysRecords = attendanceRecords.filter(record => {
+      const recordDate = record.date.toISOString().split('T')[0];
+      return !holidayDates.has(recordDate) && record.status !== 'Not Marked';
+    });
+
+    const totalDays = workingDaysRecords.length;
+    const presentDays = workingDaysRecords.filter(record => record.status === 'Present').length;
+    const absentDays = workingDaysRecords.filter(record => record.status === 'Absent').length;
+    const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+    // Group attendance by month for calendar view
+    const monthlyAttendance = {};
+    
+    attendanceRecords.forEach(record => {
+      const monthKey = record.date.toISOString().slice(0, 7); // YYYY-MM format
+      if (!monthlyAttendance[monthKey]) {
+        monthlyAttendance[monthKey] = [];
+      }
+      monthlyAttendance[monthKey].push({
+        date: record.date.toISOString().split('T')[0],
+        status: record.status,
+        reason: record.reason || '',
+        actionTaken: record.actionTaken || ''
+      });
+    });
+
+    // Add holidays to monthly attendance
+    holidays.forEach(holiday => {
+      const holidayDateStr = typeof holiday.holidayDate === 'string' ? holiday.holidayDate : holiday.holidayDate.toISOString().split('T')[0];
+      const monthKey = holidayDateStr.slice(0, 7);
+      if (!monthlyAttendance[monthKey]) {
+        monthlyAttendance[monthKey] = [];
+      }
+      monthlyAttendance[monthKey].push({
+        date: holidayDateStr,
+        status: 'Holiday',
+        reason: holiday.reason,
+        actionTaken: ''
+      });
+    });
+
+    // Get recent attendance (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentAttendance = attendanceRecords.filter(record => record.date >= thirtyDaysAgo);
+
+    // Prepare response
+    const response = {
+      success: true,
+      data: {
+        // Student basic info
+        student: {
+          id: student._id,
+          userId: student.userId._id,
+          rollNumber: student.rollNumber,
+          name: student.userId.name,
+          email: student.userId.email,
+          mobile: student.mobile || student.userId.mobile || 'N/A',
+          parentContact: student.parentContact || 'N/A',
+          address: student.address || 'N/A',
+          dateOfBirth: student.dateOfBirth || null,
+          emergencyContact: student.emergencyContact || null,
+          department: student.department,
+          batchYear: student.batchYear,
+          section: student.section,
+          status: student.status,
+          createdBy: student.createdBy,
+          createdAt: student.createdAt,
+          updatedAt: student.updatedAt
+        },
+        // Academic info
+        academic: {
+          semesters: student.semesters || [],
+          totalSemesters: student.semesters?.length || 0,
+          currentSemester: student.semesters?.find(sem => sem.status === 'active') || null
+        },
+        // Attendance statistics
+        attendanceStats: {
+          totalDays,
+          presentDays,
+          absentDays,
+          attendancePercentage,
+          recentDays: recentAttendance.length
+        },
+        // Monthly attendance data for calendar
+        monthlyAttendance,
+        // Recent attendance for quick view
+        recentAttendance: recentAttendance.map(record => ({
+          date: record.date.toISOString().split('T')[0],
+          status: record.status,
+          reason: record.reason || '',
+          actionTaken: record.actionTaken || ''
+        })),
+        // Holidays
+        holidays: holidays.map(holiday => ({
+          date: typeof holiday.holidayDate === 'string' ? holiday.holidayDate : holiday.holidayDate.toISOString().split('T')[0],
+          reason: holiday.reason
+        }))
+      }
+    };
+
+    console.log('✅ Student profile data fetched successfully');
+    res.json(response);
+
+  } catch (error) {
+    console.error('Get detailed student profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch student profile' 
+    });
+  }
+});
+
+// @desc    Update student information (limited fields)
+// @route   PUT /api/students/:id/update
+// @access  Faculty and above
+router.put('/:id/update', authenticate, facultyAndAbove, [
+  body('name').optional().isLength({ min: 3 }).withMessage('Name must be at least 3 characters'),
+  body('mobile').optional().isLength({ min: 10, max: 10 }).withMessage('Mobile must be exactly 10 digits'),
+  body('parentContact').optional().isLength({ min: 10, max: 10 }).withMessage('Parent contact must be exactly 10 digits'),
+  body('address').optional().isLength({ min: 5 }).withMessage('Address must be at least 5 characters'),
+  body('dateOfBirth').optional().isISO8601().withMessage('Invalid date format'),
+  body('emergencyContact').optional().isLength({ min: 10, max: 10 }).withMessage('Emergency contact must be exactly 10 digits'),
+  body('department').optional().isIn(['IT', 'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'AERO']).withMessage('Invalid department'),
+  body('semester').optional().isInt({ min: 1, max: 8 }).withMessage('Semester must be between 1 and 8'),
+  body('section').optional().isLength({ min: 1, max: 2 }).withMessage('Section must be 1-2 characters')
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    console.log('✏️ Update student request:', {
+      studentId: id,
+      facultyId: req.user._id,
+      facultyRole: req.user.role,
+      facultyDepartment: req.user.department,
+      updateFields: Object.keys(updateData)
+    });
+
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    // Find the student
+    const student = await Student.findById(id);
+    if (!student) {
+      console.log('❌ Student not found:', id);
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Check department access
+    if (student.department !== req.user.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only update students from your department.'
+      });
+    }
+
+    // Check if faculty is authorized to update this student
+    const isCreator = student.createdBy && student.createdBy.toString() === req.user._id.toString();
+    const isAssignedFaculty = student.semesters?.some(sem => 
+      sem.facultyId && sem.facultyId.toString() === req.user._id.toString()
+    );
+    
+    console.log('🔐 Authorization check:', {
+      isCreator,
+      isAssignedFaculty,
+      studentCreatedBy: student.createdBy,
+      currentFacultyId: req.user._id,
+      studentSemesters: student.semesters?.map(s => s.facultyId)
+    });
+    
+    if (!isCreator && !isAssignedFaculty) {
+      console.log('❌ Authorization failed: Not creator or assigned faculty');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this student'
+      });
+    }
+
+    // Prepare allowed update fields
+    const allowedFields = {
+      name: updateData.name,
+      mobile: updateData.mobile,
+      parentContact: updateData.parentContact,
+      address: updateData.address,
+      dateOfBirth: updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : undefined,
+      emergencyContact: updateData.emergencyContact,
+      section: updateData.section
+    };
+
+    // Remove undefined values
+    Object.keys(allowedFields).forEach(key => {
+      if (allowedFields[key] === undefined) {
+        delete allowedFields[key];
+      }
+    });
+
+    // Update student record
+    const updatedStudent = await Student.findByIdAndUpdate(
+      id,
+      {
+        ...allowedFields,
+        updatedAt: new Date()
+      },
+      { new: true }
+    ).populate('userId', 'name email mobile');
+
+    // Update user record if name or mobile changed
+    if (updateData.name || updateData.mobile) {
+      const userUpdateData = {};
+      if (updateData.name) userUpdateData.name = updateData.name;
+      if (updateData.mobile) userUpdateData.mobile = updateData.mobile;
+      
+      await User.findByIdAndUpdate(student.userId, {
+        ...userUpdateData,
+        updatedAt: new Date()
+      });
+    }
+
+    // Handle semester update if provided
+    if (updateData.semester) {
+      // Find the semester to update (current active semester or first one)
+      const semesterToUpdate = student.semesters?.find(sem => sem.status === 'active') || student.semesters?.[0];
+      
+      if (semesterToUpdate) {
+        // Update the semester name
+        semesterToUpdate.semesterName = `Sem ${updateData.semester}`;
+        semesterToUpdate.updatedAt = new Date();
+        
+        await Student.findByIdAndUpdate(id, {
+          semesters: student.semesters,
+          updatedAt: new Date()
+        });
+      }
+    }
+
+    console.log('✅ Student updated successfully:', {
+      studentId: id,
+      updatedFields: Object.keys(allowedFields),
+      newName: updatedStudent.name || updatedStudent.userId?.name
+    });
+
+    res.json({
+      success: true,
+      message: 'Student information updated successfully',
+      data: {
+        id: updatedStudent._id,
+        rollNumber: updatedStudent.rollNumber,
+        name: updatedStudent.name || updatedStudent.userId?.name,
+        email: updatedStudent.userId?.email,
+        mobile: updatedStudent.mobile || updatedStudent.userId?.mobile,
+        department: updatedStudent.department,
+        batchYear: updatedStudent.batchYear,
+        section: updatedStudent.section,
+        updatedFields: Object.keys(allowedFields)
+      }
+    });
+
+  } catch (error) {
+    console.error('Update student error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during student update'
+    });
+  }
+});
+
 // @desc    Get student semester enrollments
 // @route   GET /api/students/:id/semesters
 // @access  Faculty and above
@@ -1457,6 +1817,110 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
+// @desc    Get detailed student profile with attendance data
+// @route   GET /api/students/:id/profile
+// @access  Faculty and above, or student accessing their own data
+router.get('/:id/profile', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+
+    const student = await Student.findById(id)
+      .populate('userId', 'email status')
+      .populate('facultyId', 'name');
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Authorization: Faculty can view students from their department, students can view their own data
+    if (currentUser.role === 'student') {
+      if (currentUser._id.toString() !== student.userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only view your own profile'
+        });
+      }
+    } else if (currentUser.role === 'faculty' && student.department !== currentUser.department) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Get attendance statistics
+    const attendanceStats = await getAttendanceStats(student._id, student.department);
+
+    res.json({
+      success: true,
+      data: {
+        student,
+        attendanceStats
+      }
+    });
+
+  } catch (error) {
+    console.error('Get student profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching student profile'
+    });
+  }
+});
+
+// Helper function to get attendance statistics
+async function getAttendanceStats(studentId, department) {
+  try {
+    // Get all attendance records for this student
+    const attendanceRecords = await Attendance.find({
+      studentId: studentId,
+      department: department
+    }).sort({ date: -1 });
+
+    if (!attendanceRecords || attendanceRecords.length === 0) {
+      return {
+        totalDays: 0,
+        presentDays: 0,
+        absentDays: 0,
+        attendancePercentage: 0,
+        recentAttendance: []
+      };
+    }
+
+    const totalDays = attendanceRecords.length;
+    const presentDays = attendanceRecords.filter(record => record.status === 'Present').length;
+    const absentDays = attendanceRecords.filter(record => record.status === 'Absent').length;
+    const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+    // Get recent attendance (last 10 records)
+    const recentAttendance = attendanceRecords.slice(0, 10).map(record => ({
+      date: record.date,
+      status: record.status,
+      reason: record.reason || null
+    }));
+
+    return {
+      totalDays,
+      presentDays,
+      absentDays,
+      attendancePercentage,
+      recentAttendance
+    };
+  } catch (error) {
+    console.error('Error getting attendance stats:', error);
+    return {
+      totalDays: 0,
+      presentDays: 0,
+      absentDays: 0,
+      attendancePercentage: 0,
+      recentAttendance: []
+    };
+  }
+}
+
 // @desc    Get student attendance history with pagination
 // @route   GET /api/students/:id/attendance
 // @access  Faculty and above, or student accessing their own data
@@ -1572,191 +2036,133 @@ router.get('/:id/attendance', authenticate, async (req, res) => {
   }
 });
 
-// @desc    Get student profile with detailed attendance data
-// @route   GET /api/students/:id/profile
-// @access  Faculty and above, or student accessing their own data
-router.get('/:id/profile', authenticate, async (req, res) => {
+
+// @desc    Update student information (Faculty only)
+// @route   PUT /api/faculty/student/:id/update
+// @access  Faculty and above
+router.put('/faculty/student/:id/update', authenticate, facultyAndAbove, [
+  body('name').optional().trim().isLength({ min: 3, max: 100 }).withMessage('Name must be 3-100 characters'),
+  body('mobile').optional().matches(/^[0-9]{10}$/).withMessage('Mobile number must be exactly 10 digits'),
+  body('parentContact').optional().matches(/^[0-9]{10}$/).withMessage('Parent contact must be exactly 10 digits'),
+  body('address').optional().trim().isLength({ max: 500 }).withMessage('Address must be less than 500 characters'),
+  body('dateOfBirth').optional().isISO8601().withMessage('Date of birth must be a valid date'),
+  body('department').optional().isIn(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']).withMessage('Invalid department'),
+  body('section').optional().isIn(['A', 'B']).withMessage('Section must be A or B'),
+  body('semester').optional().isIn(['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8']).withMessage('Invalid semester')
+], async (req, res) => {
   try {
     const { id } = req.params;
-    const { startDate, endDate } = req.query;
     const currentUser = req.user;
+    const errors = validationResult(req);
 
-    console.log('👤 Fetching student profile for ID:', id);
-    console.log('👤 ID type:', typeof id);
-    console.log('👤 Current user role:', currentUser.role);
-
-    // Authorization: students can only access their own data, faculty+ can access any
-    if (currentUser.role === 'student' && currentUser._id.toString() !== id) {
-      return res.status(403).json({ status: 'error', message: 'Access denied' });
-    }
-
-    // Get student basic info - try both Student document ID and User document ID
-    console.log('🔍 Trying to find student by Student ID:', id);
-    let student = await Student.findById(id)
-      .populate('userId', 'name email mobile')
-      .populate('facultyId', 'name');
-
-    // If not found by Student ID, try by User ID
-    if (!student) {
-      console.log('🔍 Student not found by ID, trying by User ID:', id);
-      student = await Student.findOne({ userId: id })
-        .populate('userId', 'name email mobile')
-        .populate('facultyId', 'name');
-    }
-
-    console.log('👤 Student found:', student ? 'Yes' : 'No');
-
-    if (!student) {
-      console.log('❌ Student not found for ID:', id);
-      return res.status(404).json({ status: 'error', message: 'Student not found' });
-    }
-
-    // Build date filter
-    let dateFilter = {};
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter = { $gte: start, $lte: end };
-    } else {
-      // Default to current academic year if no date range provided
-      const currentYear = new Date().getFullYear();
-      const academicYearStart = new Date(currentYear, 7, 1); // August 1st
-      const academicYearEnd = new Date(currentYear + 1, 6, 31); // July 31st next year
-      dateFilter = { $gte: academicYearStart, $lte: academicYearEnd };
-    }
-
-    // Get attendance records for the student
-    // Use the userId from the student document for attendance queries
-    const studentUserId = student.userId._id;
-    const attendanceRecords = await Attendance.find({
-      studentId: studentUserId,
-      date: dateFilter
-    }).sort({ date: 1 });
-
-    // Get holidays in the same date range to exclude from working days
-    const Holiday = (await import('../models/Holiday.js')).default;
-    
-    // Convert dateFilter to string format for holiday queries
-    let holidayDateFilter = {};
-    if (startDate && endDate) {
-      const start = new Date(startDate).toISOString().split('T')[0];
-      const end = new Date(endDate).toISOString().split('T')[0];
-      holidayDateFilter = { $gte: start, $lte: end };
-    } else {
-      // Default to current academic year if no date range provided
-      const currentYear = new Date().getFullYear();
-      const academicYearStart = `${currentYear}-08-01`; // August 1st
-      const academicYearEnd = `${currentYear + 1}-07-31`; // July 31st next year
-      holidayDateFilter = { $gte: academicYearStart, $lte: academicYearEnd };
-    }
-    
-    const holidays = await Holiday.find({
-      department: student.department,
-      holidayDate: holidayDateFilter,
-      isActive: true
-    }).select('holidayDate reason');
-
-    // Create a set of holiday dates for quick lookup
-    const holidayDates = new Set(holidays.map(h => 
-      typeof h.holidayDate === 'string' ? h.holidayDate : h.holidayDate.toISOString().split('T')[0]
-    ));
-
-    // Calculate attendance statistics (excluding holidays and "Not Marked" days)
-    const workingDaysRecords = attendanceRecords.filter(record => {
-      const recordDate = record.date.toISOString().split('T')[0];
-      return !holidayDates.has(recordDate) && record.status !== 'Not Marked';
-    });
-
-    const totalDays = workingDaysRecords.length;
-    const presentDays = workingDaysRecords.filter(record => record.status === 'Present').length;
-    const absentDays = workingDaysRecords.filter(record => record.status === 'Absent').length;
-    const notMarkedDays = attendanceRecords.filter(record => {
-      const recordDate = record.date.toISOString().split('T')[0];
-      return !holidayDates.has(recordDate) && record.status === 'Not Marked';
-    }).length;
-    const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
-
-    // Group attendance by month for calendar view (including holidays)
-    const monthlyAttendance = {};
-    
-    // Add attendance records
-    attendanceRecords.forEach(record => {
-      const monthKey = record.date.toISOString().slice(0, 7); // YYYY-MM format
-      if (!monthlyAttendance[monthKey]) {
-        monthlyAttendance[monthKey] = [];
-      }
-      monthlyAttendance[monthKey].push({
-        date: record.date.toISOString().split('T')[0],
-        status: record.status,
-        reason: record.reason || '',
-        actionTaken: record.actionTaken || ''
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array().reduce((acc, error) => {
+          acc[error.path] = error.msg;
+          return acc;
+        }, {})
       });
+    }
+
+    console.log('📝 Faculty update student request:', {
+      studentId: id,
+      facultyId: currentUser._id,
+      facultyRole: currentUser.role,
+      facultyDepartment: currentUser.department,
+      updateData: req.body
     });
 
-    // Add holidays to monthly attendance
-    holidays.forEach(holiday => {
-      // Handle both string and Date formats
-      const holidayDateStr = typeof holiday.holidayDate === 'string' ? holiday.holidayDate : holiday.holidayDate.toISOString().split('T')[0];
-      const monthKey = holidayDateStr.slice(0, 7); // Extract YYYY-MM
-      if (!monthlyAttendance[monthKey]) {
-        monthlyAttendance[monthKey] = [];
-      }
-      monthlyAttendance[monthKey].push({
-        date: holidayDateStr,
-        status: 'Holiday',
-        reason: holiday.reason,
-        actionTaken: ''
+    // Find the student
+    const student = await Student.findById(id);
+    if (!student) {
+      console.log('❌ Student not found:', id);
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
       });
+    }
+
+    // Check if faculty has access to update this student
+    const isCreator = student.createdBy && student.createdBy.toString() === currentUser._id.toString();
+    const isAssignedFaculty = student.semesters && student.semesters.some(sem => 
+      sem.facultyId && sem.facultyId.toString() === currentUser._id.toString()
+    );
+    const hasDepartmentAccess = student.department === currentUser.department;
+    
+    console.log('🔐 Update authorization check:', {
+      isCreator,
+      isAssignedFaculty,
+      hasDepartmentAccess,
+      studentDepartment: student.department,
+      facultyDepartment: currentUser.department
+    });
+    
+    if (!isCreator && !isAssignedFaculty && !hasDepartmentAccess) {
+      console.log('❌ Update access denied: Faculty not authorized');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this student'
+      });
+    }
+
+    // Prepare update data (only allow specific fields to be updated)
+    const allowedFields = ['name', 'mobile', 'parentContact', 'address', 'dateOfBirth', 'department', 'section', 'semester'];
+    const updateData = {};
+    
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
     });
 
-    // Get recent attendance (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentAttendance = attendanceRecords.filter(record => record.date >= thirtyDaysAgo);
+    // Add timestamp
+    updateData.updatedAt = new Date();
+    updateData.updatedBy = currentUser._id;
+
+    console.log('📝 Updating student with data:', updateData);
+
+    // Update the student
+    const updatedStudent = await Student.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('userId', 'email status');
+
+    if (!updatedStudent) {
+      console.log('❌ Failed to update student');
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update student'
+      });
+    }
+
+    console.log('✅ Student updated successfully:', {
+      studentId: updatedStudent._id,
+      name: updatedStudent.name,
+      updatedFields: Object.keys(updateData)
+    });
 
     res.json({
-      status: 'success',
+      success: true,
+      message: 'Student information updated successfully',
       data: {
-        // Student basic info
-        student: {
-          id: student._id, // Use Student document ID
-          userId: student.userId._id, // Include User document ID for reference
-          rollNumber: student.rollNumber,
-          name: student.userId.name,
-          email: student.userId.email,
-          mobile: student.mobile || student.userId.mobile || 'N/A',
-          department: student.department,
-          year: student.year,
-          semester: student.semester,
-          section: student.section,
-          batch: student.batch,
-          classAssigned: student.classAssigned,
-          facultyName: student.facultyId?.name || 'Not assigned'
-        },
-        // Attendance statistics
-        attendanceStats: {
-          totalDays,
-          presentDays,
-          absentDays,
-          notMarkedDays,
-          attendancePercentage
-        },
-        // Monthly attendance data for calendar
-        monthlyAttendance,
-        // Recent attendance for quick view
-        recentAttendance: recentAttendance.map(record => ({
-          date: record.date.toISOString().split('T')[0],
-          status: record.status,
-          reason: record.reason || '',
-          actionTaken: record.actionTaken || ''
-        }))
+        id: updatedStudent._id,
+        name: updatedStudent.name,
+        rollNumber: updatedStudent.rollNumber,
+        email: updatedStudent.email,
+        department: updatedStudent.department,
+        updatedFields: Object.keys(updateData)
       }
     });
+
   } catch (error) {
-    console.error('Get student profile error:', error);
-    res.status(500).json({ status: 'error', message: 'Failed to fetch student profile' });
+    console.error('Update student error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating student'
+    });
   }
 });
 

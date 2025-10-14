@@ -1,146 +1,150 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
+import LoadingSpinner from './LoadingSpinner';
 import Toast from './Toast';
 
-const StudentProfile = () => {
+const StudentProfile = ({ onToast }) => {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [studentData, setStudentData] = useState(null);
-  const [attendanceStats, setAttendanceStats] = useState(null);
-  const [monthlyAttendance, setMonthlyAttendance] = useState({});
-  const [recentAttendance, setRecentAttendance] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [error, setError] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(null);
 
   useEffect(() => {
     fetchStudentProfile();
   }, [studentId]);
 
-  // Scroll to top when data loads
-  useEffect(() => {
-    if (!loading && studentData) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [loading, studentData]);
-
   const fetchStudentProfile = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
+      console.log('📋 Fetching student profile for ID:', studentId);
+      
       const response = await apiFetch({
-        url: `/api/students/${studentId}/profile`,
+        url: `/api/students/${studentId}/profile-detailed`,
         method: 'GET'
       });
 
-      const responseData = response.data;
-      if (responseData.status === 'success') {
-        setStudentData(responseData.data.student);
-        setAttendanceStats(responseData.data.attendanceStats);
-        setMonthlyAttendance(responseData.data.monthlyAttendance);
-        setRecentAttendance(responseData.data.recentAttendance);
+      if (response.data.success) {
+        setStudentData(response.data.data);
+        console.log('✅ Student profile loaded successfully');
       } else {
-        throw new Error(responseData.message || 'Failed to fetch student profile');
+        throw new Error(response.data.message || 'Failed to fetch student profile');
       }
     } catch (error) {
-      console.error('Fetch student profile error:', error);
-      setToast({
-        show: true,
-        message: error.response?.data?.message || error.message || 'Failed to fetch student profile',
-        type: 'error'
-      });
+      console.error('Error fetching student profile:', error);
+      setError(error.response?.data?.message || error.message || 'Failed to load student profile');
     } finally {
       setLoading(false);
     }
   };
 
-  const getAttendanceColor = (status) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const getStatusColor = (status) => {
     switch (status) {
       case 'Present': return 'text-green-600 bg-green-100';
       case 'Absent': return 'text-red-600 bg-red-100';
-      case 'Not Marked': return 'text-yellow-600 bg-yellow-100';
-      case 'Holiday': return 'text-yellow-600 bg-yellow-100';
+      case 'Holiday': return 'text-blue-600 bg-blue-100';
+      case 'Not Marked': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const getAttendanceIcon = (status) => {
-    switch (status) {
-      case 'Present': return '✅';
-      case 'Absent': return '❌';
-      case 'Not Marked': return '❔';
-      case 'Holiday': return '🎉';
-      default: return '⚪';
-    }
+  const getAttendanceColor = (percentage) => {
+    if (percentage >= 85) return 'text-green-600';
+    if (percentage >= 75) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
-  const renderCalendar = () => {
-    if (!monthlyAttendance[selectedMonth]) {
-      return (
-        <div className="text-center py-8 text-gray-500">
-          No attendance data for {selectedMonth}
-        </div>
-      );
-    }
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return now.toISOString().slice(0, 7); // YYYY-MM format
+  };
 
-    const monthData = monthlyAttendance[selectedMonth];
-    const year = parseInt(selectedMonth.split('-')[0]);
-    const month = parseInt(selectedMonth.split('-')[1]) - 1;
+  const getAvailableMonths = () => {
+    if (!studentData?.monthlyAttendance) return [];
+    return Object.keys(studentData.monthlyAttendance).sort().reverse();
+  };
+
+  const renderMonthlyCalendar = (monthKey) => {
+    if (!studentData?.monthlyAttendance?.[monthKey]) return null;
     
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
+    const monthData = studentData.monthlyAttendance[monthKey];
+    const monthDate = new Date(monthKey + '-01');
+    const monthName = monthDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const lastDay = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    const days = [];
+    // Create calendar grid
+    const calendarDays = [];
     
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
+      calendarDays.push(<div key={`empty-${i}`} className="h-8"></div>);
     }
     
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const attendance = monthData.find(record => record.date === dateStr);
-      days.push({ day, date: dateStr, attendance });
+      const dateStr = `${monthKey}-${day.toString().padStart(2, '0')}`;
+      const dayData = monthData.find(d => d.date === dateStr);
+      const status = dayData?.status || 'Not Marked';
+      
+      calendarDays.push(
+        <div
+          key={day}
+          className={`h-8 w-8 flex items-center justify-center text-sm rounded cursor-pointer hover:bg-gray-100 ${getStatusColor(status)}`}
+          title={dayData ? `${status}${dayData.reason ? ' - ' + dayData.reason : ''}` : status}
+        >
+          {day}
+        </div>
+      );
     }
 
     return (
-      <div className="grid grid-cols-7 gap-1">
-        {/* Day headers */}
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="p-2 text-center text-sm font-medium text-gray-500 bg-gray-50">
-            {day}
+      <div className="bg-white rounded-lg p-6 shadow-sm border">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">{monthName}</h3>
+        <div className="grid grid-cols-7 gap-1">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="h-8 flex items-center justify-center text-sm font-medium text-gray-500">
+              {day}
+            </div>
+          ))}
+          {calendarDays}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-100 rounded"></div>
+            <span className="text-sm text-gray-600">Present</span>
           </div>
-        ))}
-        
-        {/* Calendar days */}
-        {days.map((dayData, index) => (
-          <div
-            key={index}
-            className={`p-2 text-center text-sm border rounded relative group ${
-              dayData ? 'bg-white hover:bg-gray-50' : 'bg-gray-100'
-            }`}
-          >
-            {dayData && (
-              <>
-                <div className="font-medium">{dayData.day}</div>
-                {dayData.attendance && (
-                  <div className={`text-xs mt-1 ${getAttendanceColor(dayData.attendance.status)} px-1 py-0.5 rounded`}>
-                    {getAttendanceIcon(dayData.attendance.status)}
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-100 rounded"></div>
+            <span className="text-sm text-gray-600">Absent</span>
                   </div>
-                )}
-                {/* Tooltip for holidays */}
-                {dayData.attendance && dayData.attendance.status === 'Holiday' && (
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-yellow-600 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                    {dayData.attendance.reason}
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-100 rounded"></div>
+            <span className="text-sm text-gray-600">Holiday</span>
                   </div>
-                )}
-              </>
-            )}
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-gray-100 rounded"></div>
+            <span className="text-sm text-gray-600">Not Marked</span>
           </div>
-        ))}
+        </div>
       </div>
     );
   };
@@ -148,9 +152,24 @@ const StudentProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading student profile...</p>
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Profile</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Go Back
+          </button>
         </div>
       </div>
     );
@@ -160,12 +179,12 @@ const StudentProfile = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">👤</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Student Not Found</h2>
+          <div className="text-gray-500 text-6xl mb-4">👤</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Student Not Found</h2>
           <p className="text-gray-600 mb-4">The requested student profile could not be found.</p>
           <button
             onClick={() => navigate(-1)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Go Back
           </button>
@@ -174,210 +193,253 @@ const StudentProfile = () => {
     );
   }
 
+  const { student, academic, attendanceStats, recentAttendance, monthlyAttendance } = studentData;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-50 bg-white shadow-sm border-b">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <button
                 onClick={() => navigate(-1)}
-                className="mr-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="mr-4 p-2 text-gray-400 hover:text-gray-600"
               >
-                ← Back
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Student Profile</h1>
-                <p className="text-gray-600">{studentData.name} - {studentData.rollNumber}</p>
+                <h1 className="text-2xl font-bold text-gray-900">{student.name}</h1>
+                <p className="text-sm text-gray-500">
+                  {student.rollNumber} • {student.department} • {student.batchYear}
+                </p>
               </div>
             </div>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Student Info
+            </button>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Personal Info & Stats */}
+          {/* Left Column - Personal & Academic Info */}
           <div className="lg:col-span-1 space-y-6">
             {/* Personal Information */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Personal Information</h2>
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Roll Number</label>
-                  <p className="text-gray-900">{studentData.rollNumber}</p>
-                </div>
-                <div>
                   <label className="text-sm font-medium text-gray-500">Full Name</label>
-                  <p className="text-gray-900">{studentData.name}</p>
+                  <p className="text-gray-900">{student.name}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Email</label>
-                  <p className="text-gray-900">{studentData.email}</p>
+                  <p className="text-gray-900">{student.email}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Phone Number</label>
-                  <p className="text-gray-900">{studentData.mobile}</p>
+                  <label className="text-sm font-medium text-gray-500">Mobile</label>
+                  <p className="text-gray-900">{student.mobile}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Department</label>
-                  <p className="text-gray-900">{studentData.department}</p>
+                  <label className="text-sm font-medium text-gray-500">Parent Contact</label>
+                  <p className="text-gray-900">{student.parentContact}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Academic Info</label>
-                  <p className="text-gray-900">
-                    {studentData.batch} | {studentData.year} | {studentData.semester}
-                    {studentData.section && ` | Section ${studentData.section}`}
-                  </p>
+                  <label className="text-sm font-medium text-gray-500">Address</label>
+                  <p className="text-gray-900">{student.address}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Class Teacher</label>
-                  <p className="text-gray-900">{studentData.facultyName}</p>
+                  <label className="text-sm font-medium text-gray-500">Date of Birth</label>
+                  <p className="text-gray-900">{formatDate(student.dateOfBirth)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Emergency Contact</label>
+                  <p className="text-gray-900">{student.emergencyContact}</p>
                 </div>
               </div>
             </div>
 
-            {/* Attendance Summary Cards */}
-            {attendanceStats && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance Summary</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">✅</span>
-                      <span className="font-medium text-green-800">Days Present</span>
-                    </div>
-                    <span className="text-2xl font-bold text-green-600">{attendanceStats.presentDays}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">❌</span>
-                      <span className="font-medium text-red-800">Days Absent</span>
-                    </div>
-                    <span className="text-2xl font-bold text-red-600">{attendanceStats.absentDays}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">❔</span>
-                      <span className="font-medium text-yellow-800">Not Marked</span>
-                    </div>
-                    <span className="text-2xl font-bold text-yellow-600">{attendanceStats.notMarkedDays || 0}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">📅</span>
-                      <span className="font-medium text-blue-800">Total Working Days</span>
-                    </div>
-                    <span className="text-2xl font-bold text-blue-600">{attendanceStats.totalDays}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">📊</span>
-                      <span className="font-medium text-purple-800">Attendance %</span>
-                    </div>
-                    <span className="text-2xl font-bold text-purple-600">{attendanceStats.attendancePercentage}%</span>
-                  </div>
+            {/* Academic Information */}
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Academic Information</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Roll Number</label>
+                  <p className="text-gray-900 font-mono">{student.rollNumber}</p>
                 </div>
-
-                {/* Progress Bar */}
-                <div className="mt-6">
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Attendance Progress</span>
-                    <span>{attendanceStats.attendancePercentage}%</span>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Department</label>
+                  <p className="text-gray-900">{student.department}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Batch Year</label>
+                  <p className="text-gray-900">{student.batchYear}</p>
+                    </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Section</label>
+                  <p className="text-gray-900">{student.section}</p>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-300 ${
-                        attendanceStats.attendancePercentage >= 75 ? 'bg-green-500' :
-                        attendanceStats.attendancePercentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${attendanceStats.attendancePercentage}%` }}
-                    ></div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Total Semesters</label>
+                  <p className="text-gray-900">{academic.totalSemesters}</p>
+                    </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Status</label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                    student.status === 'active' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {student.status}
+                  </span>
                   </div>
+                    </div>
+                  </div>
+                  
+            {/* Semester Details */}
+            {academic.semesters && academic.semesters.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Semester Enrollments</h2>
+                <div className="space-y-3">
+                  {academic.semesters.map((semester, index) => (
+                    <div key={index} className="border rounded-lg p-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900">{semester.semesterName}</p>
+                          <p className="text-sm text-gray-500">{semester.year} - Section {semester.section}</p>
+                    </div>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          semester.status === 'active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {semester.status}
+                        </span>
+                  </div>
+                      {semester.facultyId && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          Faculty: {semester.facultyId.name}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Right Column - Calendar & Recent Attendance */}
+          {/* Right Column - Attendance Information */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Monthly Calendar */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Monthly Calendar View</h3>
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="month"
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex items-center">
-                      <span className="w-3 h-3 bg-green-100 rounded mr-2">✅</span>
-                      <span>Present</span>
+            {/* Attendance Overview */}
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Attendance Overview</h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900">{attendanceStats.totalDays}</div>
+                  <div className="text-sm text-gray-500">Total Days</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{attendanceStats.presentDays}</div>
+                  <div className="text-sm text-gray-500">Present</div>
                     </div>
-                    <div className="flex items-center">
-                      <span className="w-3 h-3 bg-red-100 rounded mr-2">❌</span>
-                      <span>Absent</span>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-red-600">{attendanceStats.absentDays}</div>
+                  <div className="text-sm text-gray-500">Absent</div>
                     </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getAttendanceColor(attendanceStats.attendancePercentage)}`}>
+                    {attendanceStats.attendancePercentage}%
                   </div>
+                  <div className="text-sm text-gray-500">Attendance</div>
                 </div>
               </div>
-              {renderCalendar()}
+              
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className={`h-2 rounded-full ${
+                    attendanceStats.attendancePercentage >= 85 ? 'bg-green-500' :
+                    attendanceStats.attendancePercentage >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${attendanceStats.attendancePercentage}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Monthly Calendar View */}
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Monthly Calendar View</h2>
+                <select
+                  value={selectedMonth || getCurrentMonth()}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm"
+                >
+                  {getAvailableMonths().map(month => (
+                    <option key={month} value={month}>
+                      {new Date(month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {renderMonthlyCalendar(selectedMonth || getCurrentMonth())}
             </div>
 
             {/* Recent Attendance */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Attendance (Last 30 Days)</h3>
-              {recentAttendance.length > 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Attendance (Last 30 Days)</h2>
+              {recentAttendance && recentAttendance.length > 0 ? (
                 <div className="space-y-2">
                   {recentAttendance.slice(0, 10).map((record, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center">
-                        <span className="text-lg mr-3">{getAttendanceIcon(record.status)}</span>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {new Date(record.date).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </p>
-                          {record.reason && (
-                            <p className="text-sm text-gray-600">Reason: {record.reason}</p>
-                          )}
-                        </div>
+                    <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-500">
+                          {formatDate(record.date)}
+                        </span>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(record.status)}`}>
+                          {record.status}
+                        </span>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getAttendanceColor(record.status)}`}>
-                        {record.status}
+                      {record.reason && (
+                        <span className="text-sm text-gray-500 truncate max-w-xs">
+                          {record.reason}
                       </span>
+                      )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No recent attendance records found
-                </div>
+                <p className="text-gray-500 text-center py-4">No recent attendance records found</p>
               )}
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
-      {/* Toast */}
-      {toast.show && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast({ show: false, message: '', type: 'success' })}
-        />
+      {/* Edit Modal Placeholder - Will be implemented next */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Edit Student Information</h3>
+            <p className="text-gray-600 mb-4">Edit functionality will be implemented in the next step.</p>
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

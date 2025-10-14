@@ -17,6 +17,7 @@ import AssignedBatchesPage from './pages/AssignedBatchesPage';
 import StudentManagementPage from './pages/StudentManagementPage';
 import EnhancedStudentProfile from './components/EnhancedStudentProfile';
 import StudentProfile from './components/StudentProfile';
+import StudentProfileDetail from './components/StudentProfileDetail';
 import ReportGeneration from './components/ReportGeneration';
 import './App.css';
 
@@ -139,6 +140,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['faculty', 'hod', 'principal', 'admin', 'student']}>
                   <EnhancedStudentProfile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student-detail/:studentId" 
+              element={
+                <ProtectedRoute allowedRoles={['faculty', 'hod', 'principal', 'admin']}>
+                  <StudentProfileDetail />
                 </ProtectedRoute>
               } 
             />
