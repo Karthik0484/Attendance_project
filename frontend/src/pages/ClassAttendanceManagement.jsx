@@ -887,17 +887,33 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
   };
 
   const handleDeleteStudent = async (studentId) => {
-    if (!window.confirm('Are you sure you want to delete this student?')) return;
+    if (!window.confirm(`Are you sure you want to remove this student from ${classData.semester}? They will remain enrolled in other semesters.`)) return;
 
     try {
       setLoading(true);
+      
+      // Prepare semester context for deletion
+      const semesterContext = {
+        semesterName: classData.semester,
+        year: classData.year,
+        section: classData.section || 'A',
+        department: user.department
+      };
+      
+      console.log('🗑️ Deleting student from semester:', semesterContext);
+      
       const response = await apiFetch({
-        url: `/api/faculty/delete-student/${studentId}`,
-        method: 'DELETE'
+        url: `/api/students/${studentId}/semester`,
+        method: 'DELETE',
+        data: semesterContext
       });
 
       if (response.data.success) {
-        onToast('Student deleted successfully!', 'success');
+        const message = response.data.data?.semesterRemoved 
+          ? `Student removed from ${classData.semester} successfully! They remain enrolled in other semesters.`
+          : 'Student removed from semester successfully!';
+        onToast(message, 'success');
+        
         // Refresh students list
         const studentsResponse = await apiFetch({
           url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,

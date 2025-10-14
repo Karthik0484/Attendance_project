@@ -660,46 +660,264 @@ router.put('/:id', authenticate, facultyAndAbove, [
   }
 });
 
-// @desc    Delete student
-// @route   DELETE /api/students/:id
+// @desc    Remove student from specific semester
+// @route   DELETE /api/students/:id/semester
 // @access  Faculty (Class Advisor) and above
-router.delete('/:id', authenticate, facultyAndAbove, async (req, res) => {
+router.delete('/:id/semester', authenticate, facultyAndAbove, async (req, res) => {
   try {
     const { id } = req.params;
+    const { semesterName, year, section, department } = req.body;
+    
+    console.log('🗑️ Remove student from semester request:', {
+      studentId: id,
+      facultyId: req.user._id,
+      facultyRole: req.user.role,
+      facultyDepartment: req.user.department,
+      targetSemester: { semesterName, year, section, department }
+    });
 
     // Find the student
     const student = await Student.findById(id);
     if (!student) {
+      console.log('❌ Student not found:', id);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
-
-    // Verify faculty is authorized to delete this student
-    const faculty = await Faculty.findOne({
-      userId: req.user._id,
-      is_class_advisor: true,
-      batch: student.batch,
-      year: student.year,
-      semester: parseInt(String(student.semester).match(/\d+/)?.[0] || '0', 10),
-      department: req.user.department,
-      status: 'active'
+    
+    console.log('👤 Student found:', {
+      id: student._id,
+      name: student.name,
+      rollNumber: student.rollNumber,
+      department: student.department,
+      createdBy: student.createdBy,
+      semesters: student.semesters?.length || 0
     });
 
-    if (!faculty || faculty._id.toString() !== student.facultyId.toString()) {
-      return res.status(403).json({
+    // Check if student has any semesters
+    if (!student.semesters || student.semesters.length === 0) {
+      return res.status(400).json({
         success: false,
-        message: 'You are not authorized to delete this student'
+        message: 'Student is not enrolled in any semesters'
       });
     }
 
-    // Soft delete: Mark student as inactive instead of hard delete
+    // Find the specific semester to remove
+    const semesterToRemove = student.semesters.find(sem => 
+      sem.semesterName === semesterName && 
+      sem.year === year && 
+      sem.section === section
+    );
+
+    if (!semesterToRemove) {
+      return res.status(404).json({
+        success: false,
+        message: `Student is not enrolled in ${semesterName} ${year} Section ${section}`
+      });
+    }
+
+    // Verify faculty is authorized to remove from this semester
+    const isCreator = student.createdBy && student.createdBy.toString() === req.user._id.toString();
+    const isAssignedFaculty = semesterToRemove.facultyId && semesterToRemove.facultyId.toString() === req.user._id.toString();
+    const hasDepartmentAccess = student.department === req.user.department;
+    
+    console.log('🔐 Authorization check:', {
+      isCreator,
+      isAssignedFaculty,
+      hasDepartmentAccess,
+      semesterFacultyId: semesterToRemove.facultyId,
+      currentFacultyId: req.user._id
+    });
+    
+    if (!isCreator && !isAssignedFaculty) {
+      console.log('❌ Authorization failed: Not creator or assigned faculty for this semester');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to remove this student from this semester'
+      });
+    }
+    
+    if (!hasDepartmentAccess) {
+      console.log('❌ Authorization failed: Department mismatch');
+      return res.status(403).json({
+        success: false,
+        message: 'You can only remove students from your department'
+      });
+    }
+    
+    console.log('✅ Authorization passed');
+
+    // Remove the specific semester from the array
+    const updatedSemesters = student.semesters.filter(sem => 
+      !(sem.semesterName === semesterName && 
+        sem.year === year && 
+        sem.section === section)
+    );
+
+    console.log('📚 Semesters before removal:', student.semesters.length);
+    console.log('📚 Semesters after removal:', updatedSemesters.length);
+
+    // Update the student with the filtered semesters array
+    const updatedStudent = await Student.findByIdAndUpdate(
+      id, 
+      { 
+        semesters: updatedSemesters,
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+
+    // If no semesters left, mark student as inactive
+    if (updatedSemesters.length === 0) {
+      await Student.findByIdAndUpdate(id, {
+        status: 'inactive',
+        deletedAt: new Date(),
+        deletedBy: req.user._id
+      });
+      
+      // Also mark user as inactive
+      await User.findByIdAndUpdate(student.userId, {
+        status: 'inactive',
+        deletedAt: new Date(),
+        deletedBy: req.user._id
+      });
+      
+      console.log('⚠️ Student marked as inactive - no semesters remaining');
+    }
+
+    console.log(`✅ Student removed from ${semesterName} ${year} Section ${section}`);
+    console.log(`📊 Remaining semesters: ${updatedSemesters.length}`);
+
+    res.json({
+      success: true,
+      message: `Student removed from ${semesterName} ${year} Section ${section} successfully`,
+      data: {
+        id: student._id,
+        rollNumber: student.rollNumber,
+        name: student.name,
+        semesterRemoved: true,
+        remainingSemesters: updatedSemesters.length,
+        isStudentInactive: updatedSemesters.length === 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Remove student from semester error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during semester removal'
+    });
+  }
+});
+
+// @desc    Delete student completely (removes from all semesters - use with caution)
+// @route   DELETE /api/students/:id
+// @access  Faculty (Class Advisor) and above
+// @note    This completely removes the student from all semesters. 
+//          For semester-specific removal, use DELETE /api/students/:id/semester
+router.delete('/:id', authenticate, facultyAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🗑️ Delete student request:', {
+      studentId: id,
+      facultyId: req.user._id,
+      facultyRole: req.user.role,
+      facultyDepartment: req.user.department
+    });
+
+    // Find the student
+    const student = await Student.findById(id);
+    if (!student) {
+      console.log('❌ Student not found:', id);
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
+    console.log('👤 Student found:', {
+      id: student._id,
+      name: student.name,
+      rollNumber: student.rollNumber,
+      department: student.department,
+      createdBy: student.createdBy,
+      facultyId: student.facultyId,
+      semesters: student.semesters?.length || 0
+    });
+
+    // Verify faculty is authorized to delete this student
+    // Check if faculty is the creator of the student or has permission
+    const isCreator = student.createdBy && student.createdBy.toString() === req.user._id.toString();
+    
+    // Check if faculty is assigned to any of the student's semesters
+    let isAssignedFaculty = false;
+    if (student.semesters && student.semesters.length > 0) {
+      isAssignedFaculty = student.semesters.some(sem => 
+        sem.facultyId && sem.facultyId.toString() === req.user._id.toString()
+      );
+    }
+    
+    // Check if faculty is assigned to the student (legacy support)
+    const isLegacyAssignedFaculty = student.facultyId && student.facultyId.toString() === req.user._id.toString();
+    
+    // Check department access
+    const hasDepartmentAccess = student.department === req.user.department;
+    
+    console.log('🔐 Authorization check:', {
+      isCreator,
+      isAssignedFaculty,
+      isLegacyAssignedFaculty,
+      hasDepartmentAccess,
+      studentDepartment: student.department,
+      facultyDepartment: req.user.department
+    });
+    
+    if (!isCreator && !isAssignedFaculty && !isLegacyAssignedFaculty) {
+      console.log('❌ Authorization failed: Not creator or assigned faculty');
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to delete this student. Only the assigned faculty or creator can delete students.'
+      });
+    }
+    
+    if (!hasDepartmentAccess) {
+      console.log('❌ Authorization failed: Department mismatch');
+      return res.status(403).json({
+        success: false,
+        message: 'You can only delete students from your department.'
+      });
+    }
+    
+    console.log('✅ Authorization passed');
+
+    // Log current semesters before deletion
+    console.log('📚 Current semesters before deletion:', student.semesters?.length || 0, 'semesters');
+    if (student.semesters && student.semesters.length > 0) {
+      console.log('📚 Semester details:', student.semesters.map(sem => ({
+        semesterName: sem.semesterName,
+        year: sem.year,
+        section: sem.section,
+        facultyId: sem.facultyId
+      })));
+    }
+
+    // Soft delete: Mark student as inactive and clear semesters array
     await Student.findByIdAndUpdate(id, { 
       status: 'inactive',
       deletedAt: new Date(),
-      deletedBy: req.user._id
+      deletedBy: req.user._id,
+      semesters: [], // Clear the semesters array upon deletion
+      // Also clear legacy fields for consistency
+      classId: null,
+      classAssigned: null,
+      year: null,
+      semester: null,
+      facultyId: null
     });
+    
+    console.log('🗑️ Student semesters array cleared successfully');
 
     // Also mark user as inactive
     await User.findByIdAndUpdate(student.userId, { 
@@ -707,17 +925,30 @@ router.delete('/:id', authenticate, facultyAndAbove, async (req, res) => {
       deletedAt: new Date(),
       deletedBy: req.user._id
     });
+    
+    // Remove student from any attendance records (optional - for data integrity)
+    // This ensures the student doesn't appear in attendance lists after deletion
+    try {
+      await Attendance.updateMany(
+        { studentId: student.userId },
+        { $set: { status: 'deleted', deletedAt: new Date() } }
+      );
+    } catch (attendanceError) {
+      console.log('Note: Could not update attendance records for deleted student:', attendanceError.message);
+    }
 
     // Log the deletion
     console.log(`Student soft deleted by faculty ${req.user._id}: ${student.rollNumber} - ${student.name}`);
+    console.log(`✅ Semesters array cleared for student: ${student.rollNumber}`);
 
     res.json({
       success: true,
-      message: 'Student deleted successfully',
+      message: 'Student deleted successfully. All semester enrollments have been removed.',
       data: {
         id: student._id,
         rollNumber: student.rollNumber,
-        name: student.name
+        name: student.name,
+        semestersCleared: true
       }
     });
 
@@ -1013,6 +1244,83 @@ router.get('/classes/test', authenticate, facultyAndAbove, (req, res) => {
     department: req.user.department,
     timestamp: new Date().toISOString()
   });
+});
+
+// @desc    Get student semester enrollments
+// @route   GET /api/students/:id/semesters
+// @access  Faculty and above
+router.get('/:id/semesters', authenticate, facultyAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const student = await Student.findById(id).select('rollNumber name status semesters department');
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        id: student._id,
+        rollNumber: student.rollNumber,
+        name: student.name,
+        status: student.status,
+        department: student.department,
+        semesters: student.semesters || [],
+        totalSemesters: student.semesters?.length || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get student semesters error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching student semesters'
+    });
+  }
+});
+
+// @desc    Verify student deletion (check if semesters array is cleared)
+// @route   GET /api/students/:id/verify-deletion
+// @access  Faculty and above
+router.get('/:id/verify-deletion', authenticate, facultyAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const student = await Student.findById(id).select('rollNumber name status semesters deletedAt deletedBy');
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        id: student._id,
+        rollNumber: student.rollNumber,
+        name: student.name,
+        status: student.status,
+        semestersCount: student.semesters?.length || 0,
+        semesters: student.semesters || [],
+        deletedAt: student.deletedAt,
+        deletedBy: student.deletedBy,
+        isDeleted: student.status === 'inactive',
+        semestersCleared: (student.semesters?.length || 0) === 0
+      }
+    });
+  } catch (error) {
+    console.error('Verify deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying deletion'
+    });
+  }
 });
 
 // @desc    Verify route structure
