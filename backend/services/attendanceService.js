@@ -18,10 +18,17 @@ export async function markAttendance(options) {
   const { facultyId, classId, date, absentStudents, notes } = options;
   
   try {
-    console.log('📝 Marking attendance:', { facultyId, classId, date, absentCount: absentStudents.length });
+    console.log('📝 Marking attendance:', { facultyId, classId, date, absentStudents, absentCount: absentStudents?.length || 0 });
     
-    // Normalize date to UTC midnight
-    const normalizedDate = normalizeDateToUTC(date);
+    // Parse the date and normalize to UTC midnight
+    const attendanceDate = new Date(date);
+    const normalizedDate = new Date(attendanceDate.getFullYear(), attendanceDate.getMonth(), attendanceDate.getDate());
+    
+    console.log('📅 Date processing:', {
+      originalDate: date,
+      parsedDate: attendanceDate,
+      normalizedDate: normalizedDate
+    });
     
     // Get class information and validate faculty authorization
     const classInfo = await getClassInfo(classId, facultyId);
@@ -50,19 +57,26 @@ export async function markAttendance(options) {
       department: classInfo.data.department
     };
     
-    // Use progressive query service to get students with auto-correction
-    const studentQueryResult = await getStudentsProgressive({
-      facultyId: facultyId,
-      classId: classId,
-      classContext: classContext,
-      autoCorrect: true
-    });
+    // Get students using the same method as frontend display
+    const constructedClassId = `${classContext.batch}_${classContext.year}_${classContext.semester}_${classContext.section}`;
     
-    if (!studentQueryResult.success) {
-      return { success: false, error: studentQueryResult.error };
-    }
-    
-    const students = studentQueryResult.data.students;
+    // Query students that have the specific semester enrollment (same as getStudentsForFaculty)
+    const query = {
+      department: classContext.department,
+      batchYear: classContext.batch,
+      section: classContext.section,
+      'semesters.semesterName': classContext.semester,
+      'semesters.year': classContext.year,
+      'semesters.classId': constructedClassId,
+      'semesters.status': 'active',
+      status: 'active'
+    };
+
+    console.log('🔍 Attendance validation query:', JSON.stringify(query, null, 2));
+
+    const students = await Student.find(query)
+      .select('_id rollNumber name email batch year semester section department')
+      .sort({ rollNumber: 1 });
     
     if (students.length === 0) {
       return {
@@ -74,54 +88,127 @@ export async function markAttendance(options) {
       };
     }
     
-    console.log(`✅ Retrieved ${students.length} students using progressive query`);
+    console.log(`✅ Retrieved ${students.length} students for class: ${constructedClassId}`);
+    console.log('Students:', students.map(s => ({ id: s._id, rollNumber: s.rollNumber, name: s.name })));
     
-    // Validate absent students
-    const validAbsentStudents = validateAbsentStudents(absentStudents, students);
-    if (!validAbsentStudents.success) {
-      return { success: false, error: validAbsentStudents.error };
+    // Ensure absentStudents is an array
+    const absentStudentsArray = Array.isArray(absentStudents) ? absentStudents : [];
+    
+    // Validate absent students and create student objects
+    console.log('🔍 Validating absent students:', { absentStudents: absentStudentsArray, studentsCount: students.length });
+    
+    const allRollNumbers = students.map(s => s.rollNumber);
+    const invalidRollNumbers = [];
+    const validAbsentStudents = [];
+    const seen = new Set();
+    
+    // Validate each absent student roll number
+    for (const rollNumber of absentStudentsArray) {
+      if (!allRollNumbers.includes(rollNumber)) {
+        invalidRollNumbers.push(rollNumber);
+      } else if (seen.has(rollNumber)) {
+        // Skip duplicates
+        continue;
+      } else {
+        seen.add(rollNumber);
+        // Find the student object for this roll number
+        const student = students.find(s => s.rollNumber === rollNumber);
+        if (student) {
+          validAbsentStudents.push({
+            studentId: student._id,
+            rollNumber: student.rollNumber,
+            name: student.name
+          });
+        }
+      }
     }
     
-    // Calculate present students
-    const allRollNumbers = students.map(s => s.rollNumber);
-    const presentStudents = allRollNumbers.filter(rollNumber => 
-      !validAbsentStudents.data.includes(rollNumber)
-    );
+    if (invalidRollNumbers.length > 0) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid roll numbers not found in class',
+          code: 'INVALID_ROLL_NUMBERS',
+          details: invalidRollNumbers
+        }
+      };
+    }
     
-    // Check if attendance already exists
-    const existingAttendance = await ClassAttendance.findOne({
+    // Calculate present students (all students not in absent list)
+    const absentRollNumbers = validAbsentStudents.map(s => s.rollNumber);
+    const presentStudents = students
+      .filter(student => !absentRollNumbers.includes(student.rollNumber))
+      .map(student => ({
+        studentId: student._id,
+        rollNumber: student.rollNumber,
+        name: student.name
+      }));
+    
+    console.log('📊 Student counts:', {
+      total: students.length,
+      present: presentStudents.length,
+      absent: validAbsentStudents.length,
+      presentStudents: presentStudents.map(s => s.rollNumber),
+      absentStudents: validAbsentStudents.map(s => s.rollNumber)
+    });
+    
+    // Check if attendance already exists for this class and date
+    console.log('🔍 Checking for existing attendance record...');
+    console.log('🔍 Search criteria:', {
       facultyId: facultyId,
-      classId: classId,
+      classAssigned: classId,
+      department: classInfo.data.department,
       date: normalizedDate
     });
     
-    let attendanceRecord;
-    
+    const existingAttendance = await ClassAttendance.findOne({
+      facultyId: facultyId,
+      classAssigned: classId,
+      department: classInfo.data.department,
+      date: normalizedDate
+    });
+
+    console.log('🔍 Existing attendance found:', !!existingAttendance);
     if (existingAttendance) {
-      // Update existing record
-      console.log('📝 Updating existing attendance record');
-      existingAttendance.presentStudents = presentStudents;
-      existingAttendance.absentStudents = validAbsentStudents.data;
-      existingAttendance.totalStudents = allRollNumbers.length;
-      existingAttendance.totalPresent = presentStudents.length;
-      existingAttendance.totalAbsent = validAbsentStudents.data.length;
-      existingAttendance.updatedBy = facultyId;
-      existingAttendance.status = 'modified';
-      if (notes) existingAttendance.notes = notes;
-      
-      attendanceRecord = await existingAttendance.save();
-    } else {
-      // Create new record
-      console.log('📝 Creating new attendance record');
-      attendanceRecord = new ClassAttendance({
+      console.log('⚠️ Attendance already marked for today:', {
+        id: existingAttendance._id,
+        classAssigned: existingAttendance.classAssigned,
+        department: existingAttendance.department,
+        date: existingAttendance.date
+      });
+      return {
+        success: false,
+        error: {
+          message: 'Attendance has already been marked for this class today. You can only mark attendance once per day.',
+          code: 'ATTENDANCE_ALREADY_EXISTS',
+          existingRecord: {
+            id: existingAttendance._id,
+            date: existingAttendance.date,
+            totalStudents: existingAttendance.totalStudents,
+            totalPresent: existingAttendance.totalPresent,
+            totalAbsent: existingAttendance.totalAbsent
+          }
+        }
+      };
+    }
+
+    // Create new attendance record (only one per day per class)
+    console.log('📝 Creating new attendance record');
+    
+    // Generate a unique session ID for this attendance marking
+    const sessionId = `${classId}_${normalizedDate.toISOString().split('T')[0]}_${Date.now()}`;
+    let attendanceRecord = new ClassAttendance({
         facultyId: facultyId,
-        classId: classId,
+        classId: classId, // Use original classId since only one record per day
+        classAssigned: classId, // Use original classId since only one record per day
+        originalClassId: classId, // Store original classId for easy querying
         date: normalizedDate,
-        presentStudents: presentStudents,
-        absentStudents: validAbsentStudents.data,
-        totalStudents: allRollNumbers.length,
+        sessionId: sessionId, // Unique identifier for this attendance session
+        presentStudents: presentStudents.map(s => s.rollNumber), // Store roll numbers for compatibility
+        absentStudents: validAbsentStudents.map(s => s.rollNumber), // Store roll numbers for compatibility
+        totalStudents: students.length,
         totalPresent: presentStudents.length,
-        totalAbsent: validAbsentStudents.data.length,
+        totalAbsent: validAbsentStudents.length,
         batch: classInfo.data.batch,
         year: classInfo.data.year,
         semester: classInfo.data.semester,
@@ -133,14 +220,52 @@ export async function markAttendance(options) {
         notes: notes || ''
       });
       
-      await attendanceRecord.save();
+    try {
+      attendanceRecord = await attendanceRecord.save();
+      console.log('✅ New attendance record created successfully');
+    } catch (error) {
+      console.error('❌ Error saving attendance record:', error);
+      
+      // Handle duplicate key error specifically
+      if (error.code === 11000) {
+        console.log('⚠️ Duplicate key error detected, checking for existing record...');
+        
+        // Try to find the existing record
+        const existingRecord = await ClassAttendance.findOne({
+          facultyId: facultyId,
+          classAssigned: classId,
+          department: classInfo.data.department,
+          date: normalizedDate
+        });
+        
+        if (existingRecord) {
+          return {
+            success: false,
+            error: {
+              message: 'Attendance has already been marked for this class today. You can only mark attendance once per day.',
+              code: 'ATTENDANCE_ALREADY_EXISTS',
+              existingRecord: {
+                id: existingRecord._id,
+                date: existingRecord.date,
+                totalStudents: existingRecord.totalStudents,
+                totalPresent: existingRecord.totalPresent,
+                totalAbsent: existingRecord.totalAbsent
+              }
+            }
+          };
+        }
+      }
+      
+      throw error;
     }
     
     console.log('✅ Attendance marked successfully:', {
       id: attendanceRecord._id,
       totalStudents: attendanceRecord.totalStudents,
       present: attendanceRecord.totalPresent,
-      absent: attendanceRecord.totalAbsent
+      absent: attendanceRecord.totalAbsent,
+      presentStudents: attendanceRecord.presentStudents,
+      absentStudents: attendanceRecord.absentStudents
     });
     
     return {
@@ -459,54 +584,6 @@ async function getClassInfo(classId, facultyId) {
   }
 }
 
-/**
- * Validate absent students list
- */
-function validateAbsentStudents(absentStudents, allStudents) {
-  const allRollNumbers = allStudents.map(s => s.rollNumber);
-  const invalidRollNumbers = [];
-  const duplicateRollNumbers = [];
-  const seen = new Set();
-  
-  for (const rollNumber of absentStudents) {
-    if (!allRollNumbers.includes(rollNumber)) {
-      invalidRollNumbers.push(rollNumber);
-    }
-    
-    if (seen.has(rollNumber)) {
-      duplicateRollNumbers.push(rollNumber);
-    } else {
-      seen.add(rollNumber);
-    }
-  }
-  
-  if (invalidRollNumbers.length > 0) {
-    return {
-      success: false,
-      error: {
-        message: 'Invalid roll numbers not found in class',
-        code: 'INVALID_ROLL_NUMBERS',
-        details: invalidRollNumbers
-      }
-    };
-  }
-  
-  if (duplicateRollNumbers.length > 0) {
-    return {
-      success: false,
-      error: {
-        message: 'Duplicate roll numbers found',
-        code: 'DUPLICATE_ROLL_NUMBERS',
-        details: duplicateRollNumbers
-      }
-    };
-  }
-  
-  return {
-    success: true,
-    data: absentStudents
-  };
-}
 
 export default {
   markAttendance,

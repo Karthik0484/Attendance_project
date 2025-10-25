@@ -22,31 +22,34 @@ export async function getStudentsProgressive(options) {
   try {
     console.log('🔍 Progressive student query:', { facultyId, classId, classContext, autoCorrect });
     
-    // Step 1: Primary Query - facultyId + classId
+    // Step 1: Primary Query - Use class context instead of classAssigned
     let students = await Student.find({
-      classId: classId,
-      facultyId: facultyId,
+      batch: classContext.batch,
+      year: classContext.year,
+      semester: classContext.semester,
+      section: classContext.section,
+      department: classContext.department,
       status: 'active'
-    }).select('rollNumber name email classId facultyId batch year semester section department createdBy');
+    }).select('rollNumber name email classAssigned facultyId batch year semester section department createdBy');
     
-    console.log(`📊 Primary query (facultyId + classId): ${students.length} students`);
+    console.log(`📊 Primary query (class context): ${students.length} students`);
     
-    // Step 2: Secondary Query - classId only (if none found)
+    // Step 2: Secondary Query - Try with classAssigned if no students found
     if (students.length === 0) {
-      console.log('⚠️ No students found with facultyId + classId, trying classId only...');
+      console.log('⚠️ No students found with class context, trying classAssigned...');
       
       students = await Student.find({
-        classId: classId,
+        classAssigned: classId,
         status: 'active'
-      }).select('rollNumber name email classId facultyId batch year semester section department createdBy');
+      }).select('rollNumber name email classAssigned facultyId batch year semester section department createdBy');
       
-      console.log(`📊 Secondary query (classId only): ${students.length} students`);
+      console.log(`📊 Secondary query (classAssigned): ${students.length} students`);
       
       // Auto-correct facultyId if students found
       if (students.length > 0 && autoCorrect) {
         console.log('🔧 Auto-correcting facultyId for found students...');
         await Student.updateMany(
-          { classId: classId, status: 'active' },
+          { classAssigned: classId, status: 'active' },
           { $set: { facultyId: facultyId, updatedAt: new Date() } }
         );
         console.log(`✅ Updated facultyId for ${students.length} students`);
@@ -85,7 +88,7 @@ export async function getStudentsProgressive(options) {
             { 
               $set: { 
                 facultyId: facultyId,
-                classId: classId,
+                classAssigned: classId,
                 updatedAt: new Date()
               } 
             }
@@ -129,7 +132,7 @@ export async function getStudentsProgressive(options) {
             { 
               $set: { 
                 facultyId: facultyId,
-                classId: classId,
+                classAssigned: classId,
                 updatedAt: new Date()
               } 
             }
@@ -145,7 +148,7 @@ export async function getStudentsProgressive(options) {
       rollNumber: student.rollNumber,
       name: student.name,
       email: student.email,
-      classId: student.classId,
+      classAssigned: student.classAssigned,
       facultyId: student.facultyId,
       batch: student.batch,
       year: student.year,

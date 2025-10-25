@@ -20,9 +20,26 @@ const classAttendanceSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
+  classAssigned: {
+    type: String,
+    trim: true,
+    index: true
+  },
+  originalClassId: {
+    type: String,
+    trim: true,
+    index: true
+  },
   date: {
     type: Date,
     required: true,
+    index: true
+  },
+  sessionId: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
     index: true
   },
   
@@ -131,11 +148,8 @@ classAttendanceSchema.pre('save', function(next) {
   next();
 });
 
-// Unique constraint: one record per faculty + class + date
-classAttendanceSchema.index(
-  { facultyId: 1, classId: 1, date: 1 }, 
-  { unique: true, name: 'unique_faculty_class_date' }
-);
+// Performance indexes for faculty + class + date (no unique constraint to allow multiple records per day)
+classAttendanceSchema.index({ facultyId: 1, classId: 1, date: 1 });
 
 // Performance indexes
 classAttendanceSchema.index({ facultyId: 1, date: -1 }); // For faculty history

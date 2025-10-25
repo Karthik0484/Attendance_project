@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
@@ -265,6 +265,47 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
     absentees: ''
   });
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceExists, setAttendanceExists] = useState(false);
+  const [checkingAttendance, setCheckingAttendance] = useState(true);
+  const [todayAttendance, setTodayAttendance] = useState(null);
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Check attendance status when component loads
+  useEffect(() => {
+    if (classData?.classId) {
+      console.log('📋 Component loaded, checking attendance for class:', classData.classId);
+      console.log('📋 Full class data:', classData);
+      checkAttendanceExists();
+    } else {
+      console.log('📋 No class data available yet');
+    }
+  }, [classData?.classId]);
+
+  // Refresh attendance data when students are loaded
+  useEffect(() => {
+    if (students && students.length > 0 && classData?.classId) {
+      console.log('📋 Students loaded, refreshing attendance data');
+      checkAttendanceExists();
+    }
+  }, [students, classData?.classId]);
+
+  // Debug attendance state changes
+  useEffect(() => {
+    console.log('📋 Attendance state changed:', {
+      attendanceExists,
+      todayAttendance,
+      checkingAttendance
+    });
+  }, [attendanceExists, todayAttendance, checkingAttendance]);
+
+  // Force re-render when attendance data changes
+  useEffect(() => {
+    if (todayAttendance) {
+      console.log('📋 Attendance data updated, forcing re-render');
+      console.log('📋 Present students for display:', todayAttendance.presentStudents);
+      console.log('📋 Absent students for display:', todayAttendance.absentStudents);
+    }
+  }, [todayAttendance]);
 
   const handleAttendanceChange = (e) => {
     const { name, value } = e.target;
@@ -272,15 +313,166 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
   };
 
   // Calculate present count in real-time
-  const presentCount = Math.max(0, students.length - (attendanceForm.absentees.split(',').filter(id => id.trim()).length));
+  const presentCount = Math.max(0, (students?.length || 0) - (attendanceForm.absentees.split(',').filter(id => id.trim()).length));
+
+  // Helper function to get attendance status for a student
+  const getStudentAttendanceStatus = (rollNumber) => {
+    console.log('📋 Getting status for roll number:', rollNumber);
+    console.log('📋 Current todayAttendance:', todayAttendance);
+    console.log('📋 Force update value:', forceUpdate);
+    
+    if (!todayAttendance) {
+      console.log('📋 No attendance data for roll number:', rollNumber);
+      return 'Not Marked';
+    }
+    
+    // Ensure we have arrays to work with
+    const presentStudents = Array.isArray(todayAttendance.presentStudents) ? todayAttendance.presentStudents : [];
+    const absentStudents = Array.isArray(todayAttendance.absentStudents) ? todayAttendance.absentStudents : [];
+    
+    const isPresent = presentStudents.includes(rollNumber);
+    const isAbsent = absentStudents.includes(rollNumber);
+    
+    console.log('📋 Attendance check for', rollNumber, ':', {
+      isPresent,
+      isAbsent,
+      presentStudents: presentStudents,
+      absentStudents: absentStudents,
+      fullAttendanceData: todayAttendance
+    });
+    
+    if (isPresent) return 'Present';
+    if (isAbsent) return 'Absent';
+    return 'Not Marked';
+  };
+
+  // Function to check if attendance already exists and fetch attendance data
+  const checkAttendanceExists = async () => {
+    try {
+      setCheckingAttendance(true);
+      const today = new Date();
+      const todayISO = today.toISOString().split('T')[0];
+      
+      console.log('📋 Checking attendance for date:', todayISO);
+      console.log('📋 Class ID being used:', classData.classId);
+      
+      // Try the new attendance API first
+      try {
+        const response = await apiFetch({
+          url: `/api/attendance/${encodeURIComponent(classData.classId)}/${todayISO}`,
+          method: 'GET'
+        });
+        
+        if (response.data.success) {
+          const attendance = response.data.data.attendance;
+          console.log('📋 Found attendance using new API:', attendance);
+          
+          // Transform new API data to match frontend expectations
+          const presentStudents = attendance.records
+            .filter(record => record.status === 'present')
+            .map(record => record.rollNumber);
+          
+          const absentStudents = attendance.records
+            .filter(record => record.status === 'absent')
+            .map(record => record.rollNumber);
+          
+          const attendanceData = {
+            presentStudents: presentStudents,
+            absentStudents: absentStudents,
+            totalStudents: attendance.totalStudents || 0,
+            totalPresent: attendance.totalPresent || 0,
+            totalAbsent: attendance.totalAbsent || 0,
+            date: attendance.date,
+            status: attendance.status
+          };
+          
+          setTodayAttendance(attendanceData);
+          setAttendanceExists(true);
+          console.log('📋 Processed attendance data from new API:', attendanceData);
+          console.log('📋 Present students array:', attendanceData.presentStudents);
+          console.log('📋 Absent students array:', attendanceData.absentStudents);
+          return; // Success, exit early
+        }
+      } catch (newApiError) {
+        console.log('📋 New API not available, trying old API:', newApiError.message);
+      }
+      
+      // Fallback to old API
+      const response = await apiFetch({
+        url: `/api/attendance-management/check?classId=${encodeURIComponent(classData.classId)}&date=${todayISO}`,
+        method: 'GET'
+      });
+      
+      if (response.data.success) {
+        const { exists, attendance } = response.data.data;
+        console.log('📋 Raw response from check endpoint:', response.data.data);
+        console.log('📋 Attendance exists:', exists);
+        console.log('📋 Raw attendance object:', attendance);
+        
+        setAttendanceExists(exists);
+        
+        if (attendance) {
+          // Transform attendance data to match frontend expectations
+          const attendanceData = {
+            presentStudents: attendance.presentStudents || [],
+            absentStudents: attendance.absentStudents || [],
+            totalStudents: attendance.totalStudents || 0,
+            totalPresent: attendance.totalPresent || 0,
+            totalAbsent: attendance.totalAbsent || 0,
+            date: attendance.date,
+            status: attendance.status
+          };
+          setTodayAttendance(attendanceData);
+          console.log('📋 Processed attendance data from old API:', attendanceData);
+          console.log('📋 Present students array:', attendanceData.presentStudents);
+          console.log('📋 Absent students array:', attendanceData.absentStudents);
+        } else {
+          setTodayAttendance(null);
+          console.log('📋 No attendance data found for today');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error checking attendance:', error);
+      setAttendanceExists(false);
+      setTodayAttendance(null);
+    } finally {
+      setCheckingAttendance(false);
+    }
+  };
+
+  // Function to refresh students list
+  const refreshStudentsList = async () => {
+    try {
+      console.log('🔄 Refreshing students list...');
+      const studentsResponse = await apiFetch({
+        url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${encodeURIComponent(classData.semester)}&department=${encodeURIComponent(classData.department)}`,
+        method: 'GET'
+      });
+      
+      if (studentsResponse.data.success) {
+        const refreshedStudents = studentsResponse.data.data.students || [];
+        console.log('✅ Students refreshed:', refreshedStudents.length);
+        onStudentsUpdate(refreshedStudents);
+      } else {
+        console.error('❌ Failed to refresh students:', studentsResponse.data.message);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing students list:', error);
+    }
+  };
 
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
     setAttendanceLoading(true);
 
     try {
-      // Use today's date in ISO format for backend
-      const todayISO = new Date().toISOString().split('T')[0];
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      
+      console.log('📅 Frontend date calculation:', {
+        today: today,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
       
       // Convert absentees string to array of roll numbers
       const absentRollNumbers = attendanceForm.absentees
@@ -288,35 +480,90 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
         .map(id => id.trim())
         .filter(id => id.length > 0);
 
+      // Validate that all absent roll numbers exist in the student list
+      const studentRollNumbers = (students || []).map(s => s.rollNumber);
+      const invalidRollNumbers = absentRollNumbers.filter(roll => !studentRollNumbers.includes(roll));
+      
+      if (invalidRollNumbers.length > 0) {
+        onToast(`Invalid roll numbers not found in class: ${invalidRollNumbers.join(', ')}`, 'error');
+        setAttendanceLoading(false);
+        return;
+      }
+
+      // Create attendance records for all students
+      const records = (students || []).map(student => ({
+        studentId: student._id,
+        status: absentRollNumbers.includes(student.rollNumber) ? 'absent' : 'present'
+      }));
+
       const requestData = {
-        classId: classData.classId,
-        date: todayISO,
-        absentStudents: absentRollNumbers,
+        records: records,
         notes: attendanceForm.notes || ''
       };
 
       console.log('📤 Sending attendance data:', requestData);
 
       const response = await apiFetch({
-        url: '/api/attendance-management/mark',
+        url: `/api/attendance/${encodeURIComponent(classData.classId)}/${today}`,
         method: 'POST',
         data: requestData
       });
 
       if (response.data.success) {
-        onToast('Attendance marked successfully!', 'success');
+        onToast('✓ Attendance marked successfully!', 'success');
         setAttendanceForm(prev => ({ ...prev, absentees: '' }));
+        
+        // Create attendance data from the form submission
+        const presentStudents = (students || []).filter(student => 
+          !absentRollNumbers.includes(student.rollNumber)
+        ).map(student => student.rollNumber);
+        
+        const attendanceData = {
+          presentStudents: presentStudents,
+          absentStudents: absentRollNumbers,
+          totalStudents: (students || []).length,
+          totalPresent: presentStudents.length,
+          totalAbsent: absentRollNumbers.length,
+          date: today,
+          status: 'finalized'
+        };
+        
+        // Set both attendance data and existence flag immediately
+        setTodayAttendance(attendanceData);
+        setAttendanceExists(true);
+        setForceUpdate(prev => prev + 1); // Force re-render
+        
+        console.log('📋 Attendance marked successfully!');
+        console.log('📋 Set attendanceExists to true, button should be disabled');
+        console.log('📋 Created attendance data from form:', attendanceData);
+        console.log('📋 Present students:', presentStudents);
+        console.log('📋 Absent students:', absentRollNumbers);
+        
+        // Refresh students list and attendance data
+        await refreshStudentsList();
+        await checkAttendanceExists();
       } else {
         onToast(response.data.message || 'Failed to mark attendance', 'error');
       }
     } catch (error) {
       console.error('Error marking attendance:', error);
       console.error('Error response:', error.response?.data);
-      onToast(
-        error.response?.data?.message || 
-        'Error marking attendance. Please try again.', 
-        'error'
-      );
+      
+      let errorMessage = 'Error marking attendance. Please try again.';
+      
+      if (error.response?.data?.msg === 'Token expired.') {
+        errorMessage = 'Your session has expired. Please log in again.';
+        // Redirect to login after showing error
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error?.message) {
+        errorMessage = error.response.data.error.message;
+      }
+      
+      onToast(errorMessage, 'error');
     } finally {
       setAttendanceLoading(false);
     }
@@ -324,10 +571,21 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Mark Daily Attendance</h2>
-        <p className="text-sm text-gray-500">Mark attendance for today's class</p>
-              </div>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">Mark Daily Attendance</h2>
+              <p className="text-sm text-gray-500">Mark attendance for today's class</p>
+            </div>
+            <button
+              onClick={checkAttendanceExists}
+              disabled={checkingAttendance}
+              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50"
+            >
+              {checkingAttendance ? 'Refreshing...' : 'Refresh Status'}
+            </button>
+          </div>
+        </div>
       <div className="p-6">
         <form onSubmit={handleMarkAttendance} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -377,13 +635,28 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             </div>
 
           <div className="flex justify-end">
-              <button
-                type="submit"
-              disabled={attendanceLoading}
-              className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-              {attendanceLoading ? 'Marking...' : 'Mark Attendance'}
-              </button>
+                <button
+                  type="submit"
+                  disabled={attendanceLoading || attendanceExists || checkingAttendance}
+                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                    attendanceExists 
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                  }`}
+                  onClick={() => {
+                    console.log('📋 Button clicked - State:', {
+                      attendanceLoading,
+                      attendanceExists,
+                      checkingAttendance,
+                      todayAttendance
+                    });
+                  }}
+                >
+                  {checkingAttendance ? 'Checking...' : 
+                   attendanceLoading ? 'Marking...' : 
+                   attendanceExists ? 'Already Marked Today' : 
+                   'Mark Attendance'}
+                </button>
             </div>
           </form>
 
@@ -391,7 +664,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
         <div className="mt-8">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Students in Class</h3>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table key={`attendance-table-${forceUpdate}`} className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -403,10 +676,13 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Email
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Today's Attendance
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {students.map((student) => (
+                  {(students || []).map((student) => (
                   <tr key={student._id || student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {student.rollNumber}
@@ -438,6 +714,21 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {student.email}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {(() => {
+                          const status = getStudentAttendanceStatus(student.rollNumber);
+                          const statusColors = {
+                            'Present': 'bg-green-100 text-green-800',
+                            'Absent': 'bg-red-100 text-red-800',
+                            'Not Marked': 'bg-gray-100 text-gray-800'
+                          };
+                          return (
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[status]}`}>
+                              {status}
+                            </span>
+                          );
+                        })()}
+                      </td>
                   </tr>
                 ))}
               </tbody>
@@ -451,50 +742,177 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
 
 // Edit Attendance Tab Component
 const EditAttendanceTab = ({ classData, students, onToast }) => {
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [attendanceData, setAttendanceData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [studentRecords, setStudentRecords] = useState([]);
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    fetchAttendanceRecords();
-  }, []);
+    if (classData?.classId) {
+      fetchTodayAttendance();
+    }
+  }, [classData?.classId]);
 
-  const fetchAttendanceRecords = async () => {
+  const fetchTodayAttendance = async () => {
     try {
       setLoading(true);
+      console.log('📋 Fetching today\'s attendance for class:', classData.classId);
+      
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      
       const response = await apiFetch({
-        url: `/api/attendance/history?batch=${classData.batch}&year=${classData.year}&semester=${classData.semester}&section=${classData.section}`,
+        url: `/api/attendance/${encodeURIComponent(classData.classId)}/${today}`,
         method: 'GET'
       });
 
+      console.log('📋 API Response:', response);
+
       if (response.data.success) {
-        setAttendanceRecords(response.data.data || []);
+        const attendance = response.data.data.attendance;
+        setAttendanceData(attendance);
+        setNotes(attendance.notes || '');
+        
+        // Convert attendance records to student records with status
+        const records = attendance.records.map(record => ({
+          studentId: record.studentId._id || record.studentId,
+          rollNumber: record.rollNumber,
+          name: record.name,
+          email: record.email || 'N/A',
+          status: record.status
+        }));
+        
+        setStudentRecords(records);
+        console.log('📋 Today\'s attendance loaded:', attendance);
+      } else {
+        console.log('📋 No attendance found:', response.data.message);
+        setAttendanceData(null);
+        setStudentRecords([]);
       }
     } catch (error) {
-      console.error('Error fetching attendance records:', error);
-      onToast('Error loading attendance records', 'error');
+      console.error('❌ Error fetching today\'s attendance:', error);
+      
+      if (error.response?.status === 404) {
+        // No attendance record found - this is expected if not marked yet
+        console.log('📋 No attendance record found for today - this is expected if attendance hasn\'t been marked yet');
+        setAttendanceData(null);
+        setStudentRecords([]);
+      } else {
+        let errorMessage = 'Error loading today\'s attendance';
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        // Check for authentication errors
+        if (error.response?.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        } else if (error.response?.status === 403) {
+          errorMessage = 'Access denied. You do not have permission to view this data.';
+        } else if (error.response?.status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+        
+        onToast(errorMessage, 'error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditAttendance = async (recordId, updatedData) => {
+  const handleStatusChange = (studentId, newStatus) => {
+    setStudentRecords(prev => 
+      prev.map(record => 
+        record.studentId === studentId 
+          ? { ...record, status: newStatus }
+          : record
+      )
+    );
+  };
+
+  const handleUpdateAttendance = async (e) => {
+    e.preventDefault();
+    
     try {
+      setUpdating(true);
+      
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Convert student records to API format
+      const records = studentRecords.map(record => ({
+        studentId: record.studentId,
+        status: record.status
+      }));
+
+      console.log('📋 Updating attendance with data:', {
+        classId: classData.classId,
+        date: today,
+        recordsCount: records.length,
+        notes: notes
+      });
+
       const response = await apiFetch({
-        url: `/api/attendance/${recordId}`,
+        url: `/api/attendance/${encodeURIComponent(classData.classId)}/${today}`,
         method: 'PUT',
-        data: updatedData
+        data: {
+          records: records,
+          notes: notes
+        }
       });
 
       if (response.data.success) {
-        onToast('Attendance updated successfully!', 'success');
-        fetchAttendanceRecords();
+        onToast('✅ Attendance updated successfully for today!', 'success');
+        
+        // Update local state with new data
+        const updatedAttendance = response.data.data.attendance;
+        setAttendanceData(updatedAttendance);
+        
+        // Update student records
+        const updatedRecords = updatedAttendance.records.map(record => ({
+          studentId: record.studentId._id || record.studentId,
+          rollNumber: record.rollNumber,
+          name: record.name,
+          email: record.email || 'N/A',
+          status: record.status
+        }));
+        setStudentRecords(updatedRecords);
+        
+        console.log('📋 Attendance updated:', response.data.data);
       } else {
         onToast(response.data.message || 'Failed to update attendance', 'error');
       }
     } catch (error) {
       console.error('Error updating attendance:', error);
-      onToast('Error updating attendance', 'error');
+      console.error('Error response:', error.response?.data);
+      
+      let errorMessage = 'Error updating attendance';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Check for specific error cases
+      if (error.response?.status === 404) {
+        errorMessage = 'Attendance record not found. Please mark attendance first.';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response.data.message || 'Invalid data provided.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.';
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      }
+      
+      onToast(errorMessage, 'error');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -512,89 +930,809 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
     );
   }
 
-  return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Edit Attendance Records</h2>
-        <p className="text-sm text-gray-500">Modify attendance entries for past days</p>
-      </div>
-      <div className="p-6">
-        {attendanceRecords.length === 0 ? (
+  if (!attendanceData) {
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900">Edit Today's Attendance</h2>
+          <p className="text-sm text-gray-500">Modify today's attendance record</p>
+        </div>
+        <div className="p-6">
           <div className="text-center py-8">
             <div className="text-gray-400 text-6xl mb-4">📊</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Attendance Records</h3>
-            <p className="text-gray-500">No attendance has been marked for this class yet.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Attendance Record Found</h3>
+            <p className="text-gray-500 mb-4">No attendance has been marked for today yet.</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">To edit attendance:</h4>
+              <ol className="text-sm text-blue-800 text-left space-y-1">
+                <li>1. Go to the "Mark Attendance" tab</li>
+                <li>2. Mark attendance for today's class</li>
+                <li>3. Return to this tab to edit the attendance</li>
+              </ol>
+            </div>
+            <p className="text-sm text-gray-400">You can only edit attendance after it has been initially marked.</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {attendanceRecords.map((record) => (
-              <div key={record._id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-gray-900">
-                    {new Date(record.date).toLocaleDateString()}
-                  </h3>
-                  <span className="text-sm text-gray-500">
-                    {record.presentCount}/{record.totalStudents} students present
-                        </span>
-                </div>
-                <p className="text-sm text-gray-600">
-                  Absent: {record.absentees?.join(', ') || 'None'}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Edit Form */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900">Edit Today's Attendance</h2>
+          <p className="text-sm text-gray-500">Modify today's attendance record</p>
+        </div>
+        <div className="p-6">
+          <form onSubmit={handleUpdateAttendance} className="space-y-6">
+            {/* Read-only summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Date</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {new Date(attendanceData.date).toLocaleDateString()}
                 </p>
-                <button
-                  onClick={() => handleEditAttendance(record._id, { presentCount: record.presentCount + 1 })}
-                  className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
-                >
-                  Edit Record
-                </button>
               </div>
-            ))}
-          </div>
-        )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Total Students</label>
+                <p className="mt-1 text-sm text-gray-900">{attendanceData.totalStudents}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Present</label>
+                <p className="mt-1 text-sm text-gray-900">{attendanceData.totalPresent}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Absent</label>
+                <p className="mt-1 text-sm text-gray-900">{attendanceData.totalAbsent}</p>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
+                Notes (Optional)
+              </label>
+              <textarea
+                id="notes"
+                name="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Add any additional notes..."
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={updating}
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {updating ? 'Updating...' : 'Update Attendance'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Students List with Status Toggles */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Students in Class</h3>
+          <p className="text-sm text-gray-500">Toggle attendance status for each student</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Roll Number
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {studentRecords.map((student) => (
+                <tr key={student.studentId} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {student.rollNumber}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {student.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {student.email || 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleStatusChange(student.studentId, 'present')}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                          student.status === 'present'
+                            ? 'bg-green-100 text-green-800 border-2 border-green-300'
+                            : 'bg-gray-100 text-gray-600 hover:bg-green-50'
+                        }`}
+                      >
+                        Present
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange(student.studentId, 'absent')}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                          student.status === 'absent'
+                            ? 'bg-red-100 text-red-800 border-2 border-red-300'
+                            : 'bg-gray-100 text-gray-600 hover:bg-red-50'
+                        }`}
+                      >
+                        Absent
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 };
 
-// Attendance History Tab Component
+// Enhanced Attendance History Tab Component
 const AttendanceHistoryTab = ({ classData, students, onToast }) => {
   const [attendanceHistory, setAttendanceHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [rangeAttendanceData, setRangeAttendanceData] = useState([]);
+  const [workingDays, setWorkingDays] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('single'); // 'single', 'weekly', 'monthly'
+  
+  // Auto-set date ranges when view mode changes
+  const handleViewModeChange = (newViewMode) => {
+    setViewMode(newViewMode);
+    
+    // Get today's date components in local timezone
+    const today = new Date();
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDate = today.getDate();
+    
+    // Create today's date string in YYYY-MM-DD format directly from components
+    // This avoids timezone conversion issues
+    const todayStr = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDate).padStart(2, '0')}`;
+    
+    if (newViewMode === 'weekly') {
+      // Calculate 7 days ago from today using date components
+      const sevenDaysAgo = new Date(todayYear, todayMonth, todayDate - 7);
+      const sevenDaysAgoYear = sevenDaysAgo.getFullYear();
+      const sevenDaysAgoMonth = sevenDaysAgo.getMonth();
+      const sevenDaysAgoDate = sevenDaysAgo.getDate();
+      const sevenDaysAgoStr = `${sevenDaysAgoYear}-${String(sevenDaysAgoMonth + 1).padStart(2, '0')}-${String(sevenDaysAgoDate).padStart(2, '0')}`;
+      
+      setDateRange({
+        startDate: sevenDaysAgoStr,
+        endDate: todayStr
+      });
+      
+      console.log('📅 Weekly view: Set date range to 7 days ago', {
+        startDate: sevenDaysAgoStr,
+        endDate: todayStr,
+        daysDifference: 7
+      });
+      
+    } else if (newViewMode === 'monthly') {
+      // Calculate first day of current month using explicit date construction
+      // This ensures we always get the 1st day of the current month regardless of timezone
+      const firstDayStr = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-01`;
+      
+      setDateRange({
+        startDate: firstDayStr,
+        endDate: todayStr
+      });
+      
+      console.log('📅 Monthly view: Set date range to month-to-date', {
+        startDate: firstDayStr,
+        endDate: todayStr,
+        month: todayMonth + 1,
+        year: todayYear
+      });
+      
+    } else if (newViewMode === 'single') {
+      // For single date view, set today as default
+      setSingleDate(todayStr);
+      
+      console.log('📅 Single view: Set date to today', {
+        singleDate: todayStr
+      });
+    }
+  };
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
+  const [singleDate, setSingleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [studentSummaries, setStudentSummaries] = useState([]);
+  const [summaryStats, setSummaryStats] = useState({
+    totalStudents: 0,
+    totalWorkingDays: 0,
+    averageAttendance: 0,
+    highestAttendance: { name: '', percentage: 0 },
+    lowestAttendance: { name: '', percentage: 0 }
+  });
+  const [expandedWeeks, setExpandedWeeks] = useState(new Set());
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   useEffect(() => {
-    fetchAttendanceHistory();
-  }, [dateRange]);
+    if (classData?.classId) {
+      fetchAttendanceHistory();
+    }
+  }, [viewMode, dateRange, singleDate, classData?.classId]);
+  
+  // Auto-fetch data when view mode changes (after date ranges are set)
+  useEffect(() => {
+    if (classData?.classId && (viewMode === 'weekly' || viewMode === 'monthly')) {
+      // Small delay to ensure state updates are complete
+      const timer = setTimeout(() => {
+        fetchAttendanceHistory();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode, classData?.classId]);
 
-  const fetchAttendanceHistory = async () => {
+
+  const fetchAttendanceHistory = useCallback(async () => {
+    if (viewMode !== 'single' && !validateDateRange()) {
+      console.log('⚠️ Date range validation failed');
+      return;
+    }
+    
+    // Validate date is not in the future
+    if (viewMode === 'single') {
+      if (!isValidDate(singleDate)) {
+        setError('Please select a valid date');
+        onToast('Please select a valid date', 'error');
+        return;
+      }
+      
+      // Temporarily allow future dates for testing
+      // if (isDateInFuture(singleDate)) {
+      //   setError('Cannot view attendance for future dates');
+      //   onToast('Cannot view attendance for future dates', 'error');
+      //   return;
+      // }
+    }
+    
     try {
       setLoading(true);
-      const response = await apiFetch({
-        url: `/api/attendance/history?batch=${classData.batch}&year=${classData.year}&semester=${classData.semester}&section=${classData.section}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`,
-        method: 'GET'
-      });
+      setError(null);
+      
+      let response;
+      
+      if (viewMode === 'single') {
+        // Use the new standardized history-by-class endpoint for single date view
+        const [batch, year, semester, section] = classData.classId.split('_');
+        
+        // Ensure date is in YYYY-MM-DD format
+        const formattedDate = formatDateForAPI(singleDate);
+        
+        const url = `/api/attendance/history-by-class?batch=${encodeURIComponent(batch)}&year=${encodeURIComponent(year)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}&date=${formattedDate}`;
+        
+        console.log('📊 Fetching single date attendance history:', { url, singleDate, formattedDate });
+        
+        response = await apiFetch({
+          url: url,
+          method: 'GET'
+        });
+        
+        // Handle the standardized response format
+        if (response.data.status === 'success') {
+          const attendanceRecords = response.data.data || [];
+          const summary = response.data.summary || {};
+          
+          // Convert to the format expected by the UI
+          const formattedRecords = attendanceRecords.map(record => ({
+            rollNo: record.rollNo,
+            name: record.name,
+            email: record.email,
+            date: record.date,
+            status: record.status,
+            remarks: record.remarks,
+            markedBy: record.markedBy,
+            timestamp: record.timestamp
+          }));
+          
+          setAttendanceHistory(formattedRecords);
+          
+          // Set summary stats
+          setSummaryStats({
+            totalStudents: summary.totalStudents || formattedRecords.length,
+            totalWorkingDays: 1, // Single date view
+            averageAttendance: summary.attendancePercentage || 0,
+            highestAttendance: { name: '', percentage: 0 },
+            lowestAttendance: { name: '', percentage: 0 }
+          });
+          
+          console.log('✅ Successfully loaded attendance records:', formattedRecords.length);
+        } else {
+          setError(response.data.message || 'No attendance records found');
+          setAttendanceHistory([]);
+          setSummaryStats({
+            totalStudents: 0,
+            totalWorkingDays: 0,
+            averageAttendance: 0,
+            highestAttendance: { name: '', percentage: 0 },
+            lowestAttendance: { name: '', percentage: 0 }
+          });
+        }
+      } else {
+        // Use the new history-range endpoint for date range view
+        const [batch, year, semester, section] = classData.classId.split('_');
+        
+        // Ensure dates are in YYYY-MM-DD format
+        const formattedStartDate = formatDateForAPI(dateRange.startDate);
+        const formattedEndDate = formatDateForAPI(dateRange.endDate);
+        
+        const url = `/api/attendance/history-range?batch=${encodeURIComponent(batch)}&year=${encodeURIComponent(year)}&semester=${encodeURIComponent(semester)}&section=${encodeURIComponent(section)}&startDate=${formattedStartDate}&endDate=${formattedEndDate}&viewMode=${viewMode}`;
+        
+        console.log('📊 Fetching date range attendance history:', { url, viewMode });
 
-      if (response.data.success) {
-        setAttendanceHistory(response.data.data || []);
+        response = await apiFetch({
+          url: url,
+          method: 'GET'
+        });
+        
+        // Handle the standardized response format
+        if (response.data.status === 'success') {
+          const data = response.data.data;
+          
+          // Set the range attendance data
+          setRangeAttendanceData(data.students || []);
+          setWorkingDays(data.workingDays || []);
+          
+          // Set analytics
+          if (data.analytics) {
+            setSummaryStats({
+              totalStudents: data.analytics.totalStudents,
+              totalWorkingDays: data.analytics.totalWorkingDays,
+              averageAttendance: data.analytics.averageAttendance,
+              highestAttendance: data.analytics.highestAttendance,
+              lowestAttendance: data.analytics.lowestAttendance
+            });
+          }
+          
+          console.log('✅ Successfully loaded range attendance data:', {
+            studentsCount: data.students?.length || 0,
+            workingDaysCount: data.workingDays?.length || 0,
+            students: data.students,
+            workingDays: data.workingDays,
+            analytics: data.analytics
+          });
+          
+        } else {
+          setError(response.data.message || 'No attendance data found for the selected date range');
+          setRangeAttendanceData([]);
+          setWorkingDays([]);
+          setSummaryStats({
+            totalStudents: 0,
+            totalWorkingDays: 0,
+            averageAttendance: 0,
+            highestAttendance: { name: '', percentage: 0 },
+            lowestAttendance: { name: '', percentage: 0 }
+          });
+        }
       }
     } catch (error) {
-      console.error('Error fetching attendance history:', error);
-      onToast('Error loading attendance history', 'error');
+      console.error('❌ Error fetching attendance history:', error);
+      
+      let errorMessage = 'Error loading attendance history';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.';
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. You do not have permission to view this data.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'No attendance records found for the selected date range.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      setError(errorMessage);
+      onToast(errorMessage, 'error');
     } finally {
       setLoading(false);
+    }
+  }, [viewMode, dateRange.startDate, dateRange.endDate, singleDate, classData?.classId, onToast]);
+
+  // Auto-refresh every 30 seconds if enabled
+  useEffect(() => {
+    if (!autoRefresh) return;
+    
+    const interval = setInterval(() => {
+      fetchAttendanceHistory();
+      setLastRefresh(new Date());
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchAttendanceHistory]);
+
+  // Helper function to ensure dates are properly formatted for API calls
+  const formatDateForAPI = (dateString) => {
+    if (!dateString) return '';
+    
+    // If it's already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    // If it's in DD-MM-YYYY format, convert to YYYY-MM-DD
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) {
+      const [day, month, year] = dateString.split('-');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Try to parse as date and return in YYYY-MM-DD format
+    try {
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch (error) {
+      console.error('Error parsing date for API:', error);
+    }
+    
+    return dateString; // Return original if can't parse
+  };
+
+  // Helper function to format date for display
+  const formatDateForDisplay = (dateString) => {
+    if (!dateString) return '';
+    
+    // If it's already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    // If it's in DD-MM-YYYY format, convert to YYYY-MM-DD
+    if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) {
+      const [day, month, year] = dateString.split('-');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Try to parse as date and return in YYYY-MM-DD format
+    try {
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    } catch (error) {
+      console.error('Error parsing date:', error);
+    }
+    
+    return dateString; // Return original if can't parse
+  };
+
+  // Helper function to check if date is valid
+  const isValidDate = (dateString) => {
+    if (!dateString) return false;
+    
+    const formattedDate = formatDateForDisplay(dateString);
+    const date = new Date(formattedDate);
+    
+    return !isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100;
+  };
+
+  // Helper function to validate if date is in the future
+  const isDateInFuture = (dateString) => {
+    const formattedDate = formatDateForDisplay(dateString);
+    const selectedDate = new Date(formattedDate);
+    const today = new Date();
+    
+    // Set both dates to start of day for accurate comparison
+    selectedDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    return selectedDate > today;
+  };
+
+  const validateDateRange = () => {
+    const start = new Date(dateRange.startDate);
+    const end = new Date(dateRange.endDate);
+    const today = new Date();
+    
+    // Set dates to midnight for accurate comparison
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    if (start > end) {
+      onToast('Start date cannot be after end date', 'error');
+      return false;
+    }
+    
+    // Temporarily allow future dates for testing
+    // if (end > today) {
+    //   onToast('End date cannot be in the future', 'error');
+    //   return false;
+    // }
+    
+    // Calculate inclusive days difference (+1 to include both start and end dates)
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    if (daysDiff > 365) {
+      onToast('Date range cannot exceed 365 days', 'error');
+      return false;
+    }
+    
+    console.log('📅 Date range validation (INCLUSIVE):', {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      daysDifference: daysDiff,
+      isValid: true
+    });
+    
+    return true;
+  };
+
+
+  const calculateStudentSummaries = (records, enrolledStudents = []) => {
+    const studentMap = new Map();
+    const workingDays = new Set();
+    
+    // Initialize all enrolled students first
+    enrolledStudents.forEach(enrolledStudent => {
+      studentMap.set(enrolledStudent.studentId, {
+        studentId: enrolledStudent.studentId,
+        rollNumber: enrolledStudent.rollNumber,
+        name: enrolledStudent.name,
+        email: enrolledStudent.email,
+        present: 0,
+        absent: 0,
+        od: 0,
+        holiday: 0,
+        totalDays: 0,
+        attendancePercentage: 0,
+        records: []
+      });
+    });
+    
+    // Process each attendance record
+    records.forEach(record => {
+      workingDays.add(record.date);
+      
+      if (record.records && Array.isArray(record.records)) {
+        record.records.forEach(studentRecord => {
+          const studentId = studentRecord.studentId || studentRecord.rollNumber;
+          const studentName = studentRecord.studentName || studentRecord.name;
+          const email = studentRecord.email;
+          
+          // Only process students who are enrolled in the class
+          if (studentMap.has(studentId)) {
+            const student = studentMap.get(studentId);
+            student.totalDays++;
+            student.records.push({
+              date: record.date,
+              status: studentRecord.status,
+              markedBy: record.createdBy?.name || 'Faculty',
+              timestamp: record.createdAt,
+              remarks: studentRecord.remarks || ''
+            });
+            
+            switch (studentRecord.status?.toLowerCase()) {
+              case 'present':
+                student.present++;
+                break;
+              case 'absent':
+                student.absent++;
+                break;
+              case 'od':
+                student.od++;
+                break;
+              case 'holiday':
+                student.holiday++;
+                break;
+            }
+          }
+        });
+      }
+    });
+    
+    // Calculate percentages
+    const totalWorkingDays = workingDays.size;
+    const summaries = Array.from(studentMap.values()).map(student => {
+      student.attendancePercentage = totalWorkingDays > 0 ? 
+        Math.round((student.present / totalWorkingDays) * 100 * 10) / 10 : 0;
+      return student;
+    });
+    
+    setStudentSummaries(summaries);
+    
+    // Calculate summary statistics
+    const totalStudents = summaries.length;
+    const averageAttendance = totalStudents > 0 ? 
+      summaries.reduce((sum, s) => sum + s.attendancePercentage, 0) / totalStudents : 0;
+    
+    const sortedByAttendance = summaries.sort((a, b) => b.attendancePercentage - a.attendancePercentage);
+    
+    setSummaryStats({
+      totalStudents,
+      totalWorkingDays,
+      averageAttendance: Math.round(averageAttendance * 10) / 10,
+      highestAttendance: sortedByAttendance.length > 0 ? {
+        name: sortedByAttendance[0].name,
+        percentage: sortedByAttendance[0].attendancePercentage
+      } : { name: '', percentage: 0 },
+      lowestAttendance: sortedByAttendance.length > 0 ? {
+        name: sortedByAttendance[sortedByAttendance.length - 1].name,
+        percentage: sortedByAttendance[sortedByAttendance.length - 1].attendancePercentage
+      } : { name: '', percentage: 0 }
+    });
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'present':
+        return '✅';
+      case 'absent':
+        return '❌';
+      case 'od':
+        return '💤';
+      case 'holiday':
+        return '🏖️';
+      default:
+        return '⚪';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'present':
+        return 'text-green-600 bg-green-100';
+      case 'absent':
+        return 'text-red-600 bg-red-100';
+      case 'od':
+        return 'text-blue-600 bg-blue-100';
+      case 'holiday':
+        return 'text-yellow-600 bg-yellow-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getWeekNumber = (dateString) => {
+    const date = new Date(dateString);
+    const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    const dayOfMonth = date.getDate();
+    return Math.ceil((dayOfMonth + startOfMonth.getDay()) / 7);
+  };
+
+  const groupRecordsByWeek = (records) => {
+    const weeks = new Map();
+    
+    records.forEach(record => {
+      const weekNumber = getWeekNumber(record.date);
+      const monthYear = new Date(record.date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const weekKey = `${monthYear}-Week${weekNumber}`;
+      
+      if (!weeks.has(weekKey)) {
+        weeks.set(weekKey, {
+          weekKey,
+          monthYear,
+          weekNumber,
+          startDate: record.date,
+          endDate: record.date,
+          records: []
+        });
+      }
+      
+      const week = weeks.get(weekKey);
+      week.records.push(record);
+      
+      if (record.date < week.startDate) week.startDate = record.date;
+      if (record.date > week.endDate) week.endDate = record.date;
+    });
+    
+    return Array.from(weeks.values()).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+  };
+
+  const toggleWeekExpansion = (weekKey) => {
+    const newExpanded = new Set(expandedWeeks);
+    if (newExpanded.has(weekKey)) {
+      newExpanded.delete(weekKey);
+    } else {
+      newExpanded.add(weekKey);
+    }
+    setExpandedWeeks(newExpanded);
+  };
+
+  const exportToCSV = async () => {
+    try {
+      const csvData = [];
+      
+      // Add summary
+      csvData.push(['Summary', '', '', '']);
+      csvData.push(['Total Students', summaryStats.totalStudents, '', '']);
+      csvData.push(['Total Working Days', summaryStats.totalWorkingDays, '', '']);
+      csvData.push(['Average Attendance', `${summaryStats.averageAttendance}%`, '', '']);
+      csvData.push(['Highest Attendance', `${summaryStats.highestAttendance.name} (${summaryStats.highestAttendance.percentage}%)`, '', '']);
+      csvData.push(['Lowest Attendance', `${summaryStats.lowestAttendance.name} (${summaryStats.lowestAttendance.percentage}%)`, '', '']);
+      csvData.push(['', '', '', '']);
+      
+      // Add student summaries
+      csvData.push(['Roll No', 'Name', 'Email', 'Present', 'Absent', 'OD', 'Holiday', 'Total Days', 'Attendance %']);
+      studentSummaries.forEach(student => {
+        csvData.push([
+          student.rollNumber,
+          student.name,
+          student.email,
+          student.present,
+          student.absent,
+          student.od,
+          student.holiday,
+          student.totalDays,
+          `${student.attendancePercentage}%`
+        ]);
+      });
+      
+      const csvContent = csvData.map(row => 
+        row.map(field => `"${field}"`).join(',')
+      ).join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `attendance-history-${classData.classId}-${viewMode}-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      onToast('CSV file downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      onToast('Error exporting CSV file', 'error');
     }
   };
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded"></div>
-            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900">Attendance History</h2>
+          <p className="text-sm text-gray-500">Loading attendance records...</p>
+        </div>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            <div className="space-y-3">
+              <div className="h-4 bg-gray-200 rounded"></div>
+              <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -602,71 +1740,478 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Attendance History</h2>
-        <p className="text-sm text-gray-500">View detailed attendance records</p>
-      </div>
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        {attendanceHistory.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-gray-400 text-6xl mb-4">📊</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Records Found</h3>
-            <p className="text-gray-500">No attendance records found for the selected date range.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Absent</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {attendanceHistory.map((record) => (
-                  <tr key={record._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(record.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.presentCount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.totalStudents - record.presentCount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {((record.presentCount / record.totalStudents) * 100).toFixed(1)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div className="space-y-6">
+      {/* Header with Controls */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">Centralized Attendance History</h2>
+              <p className="text-sm text-gray-500">View, filter, and analyze attendance records with real-time sync</p>
             </div>
-        )}
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="autoRefresh"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="autoRefresh" className="text-sm text-gray-600">Auto-refresh</label>
+              </div>
+              <button
+                onClick={fetchAttendanceHistory}
+                disabled={loading}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+              <button
+                onClick={exportToCSV}
+                disabled={studentSummaries.length === 0}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+          {autoRefresh && (
+            <div className="mt-2 text-xs text-gray-500">
+              Last refreshed: {lastRefresh.toLocaleTimeString()} | Auto-refreshing every 30 seconds
+            </div>
+          )}
+        </div>
+        
+        <div className="p-6">
+          {/* Filter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">View Mode</label>
+                <select
+                  value={viewMode}
+                  onChange={(e) => handleViewModeChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="single">Single Date</option>
+                  <option value="weekly">Date Range (Weekly)</option>
+                  <option value="monthly">Date Range (Monthly)</option>
+                </select>
+            </div>
+            
+            {viewMode === 'single' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
+                <input
+                  type="date"
+                  value={formatDateForDisplay(singleDate)}
+                  onChange={(e) => {
+                    const formattedValue = formatDateForDisplay(e.target.value);
+                    setSingleDate(formattedValue);
+                    // Clear any existing errors when user changes date
+                    if (error) {
+                      setError(null);
+                    }
+                  }}
+                  max={new Date().toISOString().split('T')[0]}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    !isValidDate(singleDate) || isDateInFuture(singleDate)
+                      ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
+                />
+                {(!isValidDate(singleDate) || isDateInFuture(singleDate)) && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {!isValidDate(singleDate) 
+                      ? 'Please select a valid date' 
+                      : 'Cannot view attendance for future dates'
+                    }
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {viewMode === 'weekly' ? 'Week Start Date' : 'Month Start Date'}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.startDate}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {viewMode === 'weekly' && (
+                    <p className="text-xs text-gray-500 mt-1">Auto-set to 7 days ago</p>
+                  )}
+                  {viewMode === 'monthly' && (
+                    <p className="text-xs text-gray-500 mt-1">Auto-set to 1st of month</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {viewMode === 'weekly' ? 'Week End Date' : 'Month End Date'}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.endDate}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Auto-set to today</p>
+                </div>
+              </>
+            )}
+            
+            <div className="flex items-end">
+              <button
+                onClick={fetchAttendanceHistory}
+                disabled={loading || (viewMode === 'single' && (!isValidDate(singleDate) || isDateInFuture(singleDate)))}
+                className={`w-full px-4 py-2 rounded-md flex items-center justify-center ${
+                  loading || (viewMode === 'single' && (!isValidDate(singleDate) || isDateInFuture(singleDate)))
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                View History
+              </button>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          {(viewMode === 'single' ? attendanceHistory.length > 0 : rangeAttendanceData.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-blue-900">Total Students</h3>
+                <p className="text-2xl font-bold text-blue-600">{summaryStats.totalStudents}</p>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-green-900">
+                  {viewMode === 'single' ? 'Present Today' : 'Working Days'}
+                </h3>
+                <p className="text-2xl font-bold text-green-600">
+                  {viewMode === 'single' ? 
+                    (attendanceHistory.filter(r => r.status === 'Present').length) : 
+                    summaryStats.totalWorkingDays
+                  }
+                </p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-purple-900">
+                  {viewMode === 'single' ? 'Absent Today' : 'Avg Attendance'}
+                </h3>
+                <p className="text-2xl font-bold text-purple-600">
+                  {viewMode === 'single' ? 
+                    (attendanceHistory.filter(r => r.status === 'Absent').length) : 
+                    `${summaryStats.averageAttendance}%`
+                  }
+                </p>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-yellow-900">
+                  {viewMode === 'single' ? 'Attendance %' : 'Highest'}
+                </h3>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {viewMode === 'single' ? 
+                    `${summaryStats.averageAttendance}%` : 
+                    summaryStats.highestAttendance.name
+                  }
+                </p>
+                {viewMode !== 'single' && (
+                  <p className="text-sm text-yellow-700">{summaryStats.highestAttendance.percentage}%</p>
+                )}
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-red-900">
+                  {viewMode === 'single' ? 'Status' : 'Lowest'}
+                </h3>
+                <p className="text-lg font-bold text-red-600">
+                  {viewMode === 'single' ? 
+                    (summaryStats.averageAttendance >= 75 ? 'Good' : summaryStats.averageAttendance >= 50 ? 'Average' : 'Poor') :
+                    summaryStats.lowestAttendance.name
+                  }
+                </p>
+                {viewMode !== 'single' && (
+                  <p className="text-sm text-red-700">{summaryStats.lowestAttendance.percentage}%</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Dynamic Table Content */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">
+            {viewMode === 'single' ? 'Single Date View' : 
+             viewMode === 'weekly' ? 'Weekly View' : 'Monthly View'}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {viewMode === 'single' ? `Attendance records for ${formatDate(singleDate)}` :
+             viewMode === 'weekly' ? `Weekly attendance summary from ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}` :
+             `Monthly attendance summary from ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`}
+          </p>
+        </div>
+        
+        <div className="p-6">
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading Attendance Records...</h3>
+              <p className="text-gray-500">Please wait while we fetch the data</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <div className="text-red-400 text-6xl mb-4">⚠️</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Data</h3>
+              <p className="text-gray-500 mb-4">{error}</p>
+              <button
+                onClick={fetchAttendanceHistory}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : (viewMode === 'single' ? attendanceHistory.length === 0 : rangeAttendanceData.length === 0) ? (
+            <div className="text-center py-8">
+              <div className="text-gray-400 text-6xl mb-4">📊</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Records Found</h3>
+              <p className="text-gray-500 mb-4">
+                No attendance records found for the selected {viewMode === 'single' ? 'date' : 'date range'}.
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">Possible reasons:</h4>
+                <ul className="text-sm text-blue-800 text-left space-y-1">
+                  <li>• No attendance has been marked for this {viewMode === 'single' ? 'date' : 'period'}</li>
+                  <li>• The date range is too narrow</li>
+                  <li>• Attendance records are not available for this class</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {viewMode === 'single' && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marked By</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {attendanceHistory.map((record) => (
+                        <tr key={record.rollNo} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {record.rollNo}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {record.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(record.status)}`}>
+                              {getStatusIcon(record.status)} {record.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.remarks || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.markedBy || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {record.timestamp && record.timestamp !== '-' ? new Date(record.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {(viewMode === 'weekly' || viewMode === 'monthly') && (
+                <div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        {workingDays.map((date) => (
+                          <th key={date} className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {new Date(date).toLocaleDateString('en-IN', { 
+                              day: '2-digit', 
+                              month: 'short' 
+                            })}
+                          </th>
+                        ))}
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Present Count</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Working Days</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">% Attendance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {rangeAttendanceData && rangeAttendanceData.length > 0 ? rangeAttendanceData.map((student) => (
+                        <tr key={student.studentId} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {student.rollNumber}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {student.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {student.email}
+                          </td>
+                          {workingDays.map((date) => {
+                            const status = student.attendanceData[date] || 'Not Marked';
+                            return (
+                              <td key={date} className="px-2 py-4 text-center text-sm">
+                                <span className={`inline-flex px-1 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
+                                  {getStatusIcon(status)}
+                                </span>
+                              </td>
+                            );
+                          })}
+                          <td className="px-6 py-4 text-center text-sm text-gray-900 font-semibold">
+                            {student.presentCount}
+                          </td>
+                          <td className="px-6 py-4 text-center text-sm text-gray-900 font-semibold">
+                            {student.totalWorkingDays}
+                          </td>
+                          <td className="px-6 py-4 text-center text-sm">
+                            <span className={`font-semibold ${student.attendancePercentage >= 75 ? 'text-green-600' : student.attendancePercentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              {student.attendancePercentage}%
+                            </span>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={workingDays.length + 6} className="px-6 py-8 text-center text-gray-500">
+                            No student data available for the selected date range
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                </div>
+              )}
+
+              {/* Monthly view is now handled by the weekly/monthly combined view above */}
+              {false && viewMode === 'monthly' && (
+                <div className="space-y-4">
+                  {groupRecordsByWeek(attendanceHistory).map((week) => (
+                    <div key={week.weekKey} className="border border-gray-200 rounded-lg">
+                      <div 
+                        className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => toggleWeekExpansion(week.weekKey)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-lg font-medium text-gray-900">
+                            {week.monthYear} - Week {week.weekNumber}
+                          </h4>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>{formatDate(week.startDate)} - {formatDate(week.endDate)}</span>
+                            <span>{week.records.length} days</span>
+                            <svg 
+                              className={`w-5 h-5 transition-transform ${expandedWeeks.has(week.weekKey) ? 'rotate-180' : ''}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {expandedWeeks.has(week.weekKey) && (
+                        <div className="border-t border-gray-200 p-4 bg-gray-50">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Absent</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">OD</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Holiday</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">% Attendance</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {studentSummaries.map((student) => {
+                                  const weekRecords = student.records.filter(r => 
+                                    week.records.some(wr => wr.date === r.date)
+                                  );
+                                  const weekPresent = weekRecords.filter(r => r.status === 'present').length;
+                                  const weekAbsent = weekRecords.filter(r => r.status === 'absent').length;
+                                  const weekOD = weekRecords.filter(r => r.status === 'od').length;
+                                  const weekHoliday = weekRecords.filter(r => r.status === 'holiday').length;
+                                  const weekPercentage = weekRecords.length > 0 ? 
+                                    Math.round((weekPresent / weekRecords.length) * 100 * 10) / 10 : 0;
+                                  
+                                  return (
+                                    <tr key={student.studentId} className="hover:bg-gray-50">
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {student.rollNumber}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {student.name}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                                        {weekPresent}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                                        {weekAbsent}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                                        {weekOD}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600 font-medium">
+                                        {weekHoliday}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                        {weekPercentage}%
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1009,7 +2554,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
         </div>
       </div>
       <div className="p-6">
-        {students.length === 0 ? (
+        {(students || []).length === 0 ? (
           <div className="text-center py-8">
             <div className="text-gray-400 text-6xl mb-4">👥</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Students Found</h3>
@@ -1035,7 +2580,7 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {students.map((student) => (
+                {(students || []).map((student) => (
                   <tr key={student._id || student.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {student.rollNumber}
