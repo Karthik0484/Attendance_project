@@ -1297,8 +1297,23 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
         if (response.data.status === 'success') {
           const data = response.data.data;
           
+          // Process and unify the attendance data for both UI and export
+          let processedStudents;
+          
+          // Try the new processing first
+          if (data.students && data.students.length > 0) {
+            const workingDaysCount = data.workingDays ? data.workingDays.length : 0;
+            processedStudents = processAttendanceData(data.students, students, workingDaysCount);
+          } else {
+            // Fallback: use the existing calculation method
+            console.log('🔄 Using fallback calculation method');
+            const records = data.records || [];
+            const summaries = calculateStudentSummaries(records, students);
+            processedStudents = summaries;
+          }
+          
           // Set the range attendance data
-          setRangeAttendanceData(data.students || []);
+          setRangeAttendanceData(processedStudents);
           setWorkingDays(data.workingDays || []);
           
           // Set analytics
@@ -1312,10 +1327,10 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
             });
           }
           
-          console.log('✅ Successfully loaded range attendance data:', {
-            studentsCount: data.students?.length || 0,
+          console.log('✅ Successfully loaded and processed range attendance data:', {
+            studentsCount: processedStudents?.length || 0,
             workingDaysCount: data.workingDays?.length || 0,
-            students: data.students,
+            processedStudents: processedStudents,
             workingDays: data.workingDays,
             analytics: data.analytics
           });
@@ -1489,6 +1504,193 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
     return true;
   };
 
+
+  // Unified data processing function for both UI and export
+  const processAttendanceData = (apiStudents, enrolledStudents, totalWorkingDaysCount) => {
+    console.log('🔄 Processing attendance data:', { apiStudents, enrolledStudents, totalWorkingDaysCount });
+    
+    // Create a map of enrolled students for quick lookup
+    const enrolledMap = new Map();
+    enrolledStudents.forEach(student => {
+      enrolledMap.set(student.rollNumber, student);
+      if (student.studentId) enrolledMap.set(student.studentId, student);
+    });
+    
+    // Process each student from API response
+    const processedStudents = apiStudents.map(apiStudent => {
+      console.log('🔍 Processing API student:', apiStudent);
+      
+      // Find the corresponding enrolled student
+      const enrolledStudent = enrolledMap.get(apiStudent.rollNumber) || 
+                            enrolledMap.get(apiStudent.studentId) ||
+                            enrolledStudents.find(s => 
+                              s.name === apiStudent.name || 
+                              s.email === apiStudent.email
+                            );
+      
+      // Extract attendance metrics from various possible API structures
+      let present = 0, absent = 0, od = 0, holiday = 0;
+      
+      // Try different possible field names from API
+      present = apiStudent.present || apiStudent.presentCount || apiStudent.presentDays || 0;
+      absent = apiStudent.absent || apiStudent.absentCount || apiStudent.absentDays || 0;
+      od = apiStudent.od || apiStudent.odCount || apiStudent.odDays || apiStudent.onDuty || 0;
+      holiday = apiStudent.holiday || apiStudent.holidayCount || apiStudent.holidayDays || 0;
+      
+      // If direct counts aren't available, try to calculate from records
+      if (present === 0 && absent === 0 && od === 0 && holiday === 0 && apiStudent.records) {
+        apiStudent.records.forEach(record => {
+          switch (record.status?.toLowerCase()) {
+            case 'present':
+              present++;
+              break;
+            case 'absent':
+              absent++;
+              break;
+            case 'od':
+            case 'onduty':
+              od++;
+              break;
+            case 'holiday':
+              holiday++;
+              break;
+          }
+        });
+      }
+      
+      // DEBUG: Log the API student data to understand the structure
+      console.log(`🔍 API Student Data for ${apiStudent.name}:`, {
+        present: apiStudent.present,
+        absent: apiStudent.absent,
+        od: apiStudent.od,
+        holiday: apiStudent.holiday,
+        records: apiStudent.records,
+        attendancePercentage: apiStudent.attendancePercentage,
+        totalWorkingDays: totalWorkingDaysCount
+      });
+      
+      // PRIORITY 1: Check for explicit absent records marked by faculty
+      if (apiStudent.records && apiStudent.records.length > 0) {
+        let explicitAbsent = 0;
+        apiStudent.records.forEach(record => {
+          if (record.status?.toLowerCase() === 'absent') {
+            explicitAbsent++;
+          }
+        });
+        if (explicitAbsent > 0) {
+          absent = explicitAbsent;
+          console.log(`📊 Using explicit absent count from faculty records for ${apiStudent.name}: ${absent}`);
+        }
+      }
+      
+      // PRIORITY 2: If no explicit absent records, derive from attendance percentage
+      if (absent === 0 && present > 0) {
+        // Get the attendance percentage from API or calculate from present/total ratio
+        let attendancePercentage = apiStudent.attendancePercentage || 0;
+        
+        // If no percentage from API, try to calculate from present vs total working days
+        if (attendancePercentage === 0 && totalWorkingDaysCount > 0) {
+          attendancePercentage = Math.round((present / totalWorkingDaysCount) * 100 * 10) / 10;
+        }
+        
+        // Derive absent days from percentage: (present / (present + absent + od)) * 100 = percentage
+        // Solving for absent: absent = (present * 100 / percentage) - present - od
+        if (attendancePercentage > 0 && attendancePercentage < 100) {
+          const totalConsideredDays = Math.round((present * 100) / attendancePercentage);
+          const derivedAbsent = totalConsideredDays - present - od;
+          
+          if (derivedAbsent > 0) {
+            absent = derivedAbsent;
+            console.log(`📊 Derived absent from percentage for ${apiStudent.name}: ${absent} (${attendancePercentage}% attendance)`);
+          }
+        }
+      }
+      
+      // PRIORITY 3: Fallback to API provided absent count
+      if (absent === 0 && apiStudent.absent && apiStudent.absent > 0) {
+        absent = apiStudent.absent;
+        console.log(`📊 Using API absent count for ${apiStudent.name}: ${absent}`);
+      }
+      
+      const totalDays = present + absent + od + holiday;
+      
+      // Calculate attendance percentage
+      let attendancePercentage = 0;
+      if (totalDays > 0) {
+        attendancePercentage = Math.round((present / (present + absent + od)) * 100 * 10) / 10;
+      }
+      
+      // Final validation: Ensure the calculated values make sense
+      if (present > 0 && absent > 0) {
+        const calculatedPercentage = Math.round((present / (present + absent + od)) * 100 * 10) / 10;
+        console.log(`📊 Final validation for ${apiStudent.name}: ${present} present, ${absent} absent, ${calculatedPercentage}% calculated`);
+      }
+      
+      // Recalculate total days and percentage with updated absent
+      const finalTotalDays = present + absent + od + holiday;
+      const finalAttendancePercentage = finalTotalDays > 0 ? 
+        Math.round((present / (present + absent + od)) * 100 * 10) / 10 : 0;
+      
+      console.log('📊 Calculated metrics:', {
+        present, absent, od, holiday, totalDays, attendancePercentage
+      });
+      
+      return {
+        // Use enrolled student data as primary source for consistency
+        rollNumber: enrolledStudent?.rollNumber || apiStudent.rollNumber || '',
+        studentId: enrolledStudent?.studentId || apiStudent.studentId || '',
+        name: enrolledStudent?.name || apiStudent.name || '',
+        email: enrolledStudent?.email || apiStudent.email || '',
+        // Attendance metrics (using final calculated values)
+        present,
+        absent,
+        od,
+        holiday,
+        totalDays: finalTotalDays,
+        attendancePercentage: finalAttendancePercentage,
+        // Additional data from API
+        records: apiStudent.records || [],
+        ...apiStudent
+      };
+    });
+    
+    // Add enrolled students who don't have attendance records
+    enrolledStudents.forEach(enrolledStudent => {
+      const hasRecord = processedStudents.some(ps => 
+        ps.rollNumber === enrolledStudent.rollNumber ||
+        ps.studentId === enrolledStudent.studentId
+      );
+      
+      if (!hasRecord) {
+        // Student has no records - they have no attendance data (not marked as absent)
+        const present = 0;
+        const od = 0;
+        const holiday = 0;
+        const absent = 0; // No explicit absent records = 0 absent days
+        const totalDays = present + absent + od + holiday;
+        const attendancePercentage = 0; // Cannot calculate percentage without any records
+        
+        processedStudents.push({
+          rollNumber: enrolledStudent.rollNumber || '',
+          studentId: enrolledStudent.studentId || '',
+          name: enrolledStudent.name || '',
+          email: enrolledStudent.email || '',
+          present,
+          absent,
+          od,
+          holiday,
+          totalDays,
+          attendancePercentage,
+          records: []
+        });
+        
+        console.log(`📊 Added student with no records: ${enrolledStudent.name} - no attendance data`);
+      }
+    });
+    
+    console.log('✅ Processed students data:', processedStudents);
+    return processedStudents;
+  };
 
   const calculateStudentSummaries = (records, enrolledStudents = []) => {
     const studentMap = new Map();
@@ -1671,7 +1873,6 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
   const exportToCSV = async () => {
     try {
       const csvData = [];
-      
       // Add summary
       csvData.push(['Summary', '', '', '']);
       csvData.push(['Total Students', summaryStats.totalStudents, '', '']);
@@ -1680,27 +1881,65 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
       csvData.push(['Highest Attendance', `${summaryStats.highestAttendance.name} (${summaryStats.highestAttendance.percentage}%)`, '', '']);
       csvData.push(['Lowest Attendance', `${summaryStats.lowestAttendance.name} (${summaryStats.lowestAttendance.percentage}%)`, '', '']);
       csvData.push(['', '', '', '']);
-      
-      // Add student summaries
+      // Add header
       csvData.push(['Roll No', 'Name', 'Email', 'Present', 'Absent', 'OD', 'Holiday', 'Total Days', 'Attendance %']);
-      studentSummaries.forEach(student => {
+      // Use appropriate data source
+      if(viewMode === 'single') {
+        students.forEach(student => {
+          // Try to find student's record for selected date
+          const found = attendanceHistory.find(
+            rec => (rec.rollNo && rec.rollNo === student.rollNumber) ||
+                    (rec.rollNumber && rec.rollNumber === student.rollNumber) ||
+                    (rec.studentId && rec.studentId === student.studentId)
+          );
+          const status = found ? (found.status ? found.status.toLowerCase() : '') : 'absent';
         csvData.push([
-          student.rollNumber,
-          student.name,
-          student.email,
-          student.present,
-          student.absent,
-          student.od,
-          student.holiday,
-          student.totalDays,
-          `${student.attendancePercentage}%`
+            student.rollNumber || '',
+            student.name || '',
+            student.email || '',
+            status === 'present' ? 1 : 0,
+            status === 'absent' ? 1 : 0,
+            status === 'od' ? 1 : 0,
+            status === 'holiday' ? 1 : 0,
+            1,  // Always one day in single mode
+            status === 'present' ? '100%' : '0%'
         ]);
       });
-      
+      } else {
+        // For weekly/monthly: use the processed rangeAttendanceData directly
+        console.log('📊 Export Debug - rangeAttendanceData:', rangeAttendanceData);
+        console.log('📊 Export Debug - rangeAttendanceData length:', rangeAttendanceData.length);
+        
+        // rangeAttendanceData now contains ALL students (with and without records)
+        // so we can use it directly without matching
+        rangeAttendanceData.forEach((student, index) => {
+          console.log(`📊 Export Debug - Student ${index}:`, {
+            rollNumber: student.rollNumber,
+            name: student.name,
+            present: student.present,
+            absent: student.absent,
+            od: student.od,
+            holiday: student.holiday,
+            totalDays: student.totalDays,
+            attendancePercentage: student.attendancePercentage
+          });
+          
+          csvData.push([
+            student.rollNumber || '',
+            student.name || '',
+            student.email || '',
+            student.present || 0,
+            student.absent || 0,
+            student.od || 0,
+            student.holiday || 0,
+            student.totalDays || 0,
+            `${student.attendancePercentage || 0}%`
+          ]);
+        });
+      }
       const csvContent = csvData.map(row => 
         row.map(field => `"${field}"`).join(',')
       ).join('\n');
-      
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -1710,7 +1949,6 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       onToast('CSV file downloaded successfully!', 'success');
     } catch (error) {
       console.error('Error exporting CSV:', error);
@@ -1731,7 +1969,6 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
             <div className="space-y-3">
               <div className="h-4 bg-gray-200 rounded"></div>
               <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             </div>
           </div>
         </div>
@@ -1746,7 +1983,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-medium text-gray-900">Centralized Attendance History</h2>
+              <h2 className="text-lg font-medium text-gray-900">Attendance History</h2>
               <p className="text-sm text-gray-500">View, filter, and analyze attendance records with real-time sync</p>
             </div>
             <div className="flex items-center space-x-3">
@@ -1772,8 +2009,8 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
               </button>
               <button
                 onClick={exportToCSV}
-                disabled={studentSummaries.length === 0}
-                className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center"
+                disabled={false}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1871,7 +2108,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
               </>
             )}
             
-            <div className="flex items-end">
+            <div className="flex items-center">
               <button
                 onClick={fetchAttendanceHistory}
                 disabled={loading || (viewMode === 'single' && (!isValidDate(singleDate) || isDateInFuture(singleDate)))}
@@ -1879,7 +2116,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   loading || (viewMode === 'single' && (!isValidDate(singleDate) || isDateInFuture(singleDate)))
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                }${viewMode === 'single' ? ' align-btn-single-date' : viewMode !== 'single' ? ' align-btn-to-input-center' : ''}`}
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

@@ -92,3 +92,15 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Custom alignment utility for View History button */
+.align-btn-to-input-center {
+  position: relative;
+  top: 3px; /* Slight upward nudge, adjust as needed for optical alignment */
+}
+
+/* Custom vertical alignment for View History button - Single Date mode */
+.align-btn-single-date {
+  position: relative;
+  top: 13px; /* Adjust upward as needed for perfect visual center alignment in single date */
+}
