@@ -11,6 +11,7 @@ import FacultyDashboard from './pages/dashboards/FacultyDashboard';
 import ClassAttendanceManagement from './pages/ClassAttendanceManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
+import SemesterDetailPage from './pages/SemesterDetailPage';
 import ClassManagementPage from './pages/ClassManagementPage';
 import ClassSelectionPage from './pages/ClassSelectionPage';
 import AssignedBatchesPage from './pages/AssignedBatchesPage';
@@ -84,6 +85,22 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student/semester/:semesterId" 
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <SemesterDetailPage />
                 </ProtectedRoute>
               } 
             />

@@ -13,6 +13,8 @@ import holidayRoutes from './routes/holiday.js';
 import bulkUploadRoutes from './routes/bulkUpload.js';
 import studentBulkUploadRoutes from './routes/studentBulkUpload.js';
 import classAssignmentRoutes from './routes/classAssignment.js';
+import semesterRoutes from './routes/semester.js';
+import attendanceReasonRoutes from './routes/attendanceReason.js';
 import config from './config/config.js';
 import Student from './models/Student.js';
 import Attendance from './models/Attendance.js';
@@ -66,6 +68,9 @@ app.use((req, res, next) => {
 console.log('🔧 Registering routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+// IMPORTANT: attendanceReasonRoutes must come BEFORE attendanceRoutes
+// to avoid /:classId/:date pattern matching /reasons/pending
+app.use('/api/attendance', attendanceReasonRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/attendance-management', attendanceManagementRoutes);
 app.use('/api/faculty', facultyRoutes);
@@ -79,6 +84,7 @@ app.use('/api/report', reportRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/bulk-upload', bulkUploadRoutes);
 app.use('/api/class-assignment', classAssignmentRoutes);
+app.use('/api/semesters', semesterRoutes);
 console.log('✅ All routes registered successfully');
 
 // Health check route

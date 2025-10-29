@@ -10,6 +10,7 @@ import Attendance from '../models/Attendance.js';
 import ClassAttendance from '../models/ClassAttendance.js';
 import Student from '../models/Student.js';
 import Faculty from '../models/Faculty.js';
+import { getHolidayCountForAnalytics } from '../services/holidayService.js';
 
 const router = express.Router();
 
@@ -704,9 +705,10 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
     }
     
     // If still not found, try the Attendance model as fallback
+    let attendanceModelRecord = null;
     if (!attendanceRecord) {
       console.log('📅 Trying Attendance model as fallback...');
-      const attendanceModelRecord = await Attendance.findOne({
+      attendanceModelRecord = await Attendance.findOne({
         facultyId: faculty._id,
         classId: classId,
         date: date
@@ -723,8 +725,20 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
           totalAbsent: attendanceModelRecord.totalAbsent,
           date: normalizedDate,
           updatedAt: attendanceModelRecord.updatedAt,
-          status: attendanceModelRecord.status
+          status: attendanceModelRecord.status,
+          _rawRecords: attendanceModelRecord.records // Keep raw records for reason lookup
         };
+      }
+    } else {
+      // Even if found in ClassAttendance, try to get the Attendance model for reasons
+      attendanceModelRecord = await Attendance.findOne({
+        facultyId: faculty._id,
+        classId: classId,
+        date: date
+      });
+      
+      if (attendanceModelRecord) {
+        attendanceRecord._rawRecords = attendanceModelRecord.records;
       }
     }
 
@@ -758,6 +772,12 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
       let markedBy = '-';
       let timestamp = '-';
       
+      // Look for the student's record in raw records to get the reason
+      let studentRecord = null;
+      if (attendanceRecord?._rawRecords) {
+        studentRecord = attendanceRecord._rawRecords.find(r => r.rollNumber === student.rollNumber);
+      }
+      
       if (isPresent) {
         status = 'Present';
         remarks = '-';
@@ -765,7 +785,8 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
         timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
       } else if (isAbsent) {
         status = 'Absent';
-        remarks = '-';
+        // Check if student submitted a reason
+        remarks = studentRecord?.reason || '-';
         markedBy = faculty.name || 'Faculty';
         timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
       }
@@ -778,7 +799,9 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
         status: status,
         remarks: remarks,
         markedBy: markedBy,
-        timestamp: timestamp
+        timestamp: timestamp,
+        reviewStatus: studentRecord?.reviewStatus || null,
+        facultyNote: studentRecord?.facultyNote || null
       };
     });
 
@@ -889,7 +912,20 @@ router.get('/history-range', authenticate, facultyAndAbove, async (req, res) => 
       });
     }
 
-    // Generate working days array (INCLUSIVE) - same logic as before
+    // Get holidays for the date range
+    const holidayResult = await getHolidayCountForAnalytics({
+      batchYear: batch,
+      section: section,
+      semester: semester,
+      department: faculty.department,
+      startDate: startDate,
+      endDate: endDate
+    });
+
+    const holidays = holidayResult.success ? holidayResult.data.holidays : [];
+    const holidayDates = new Set(holidays.map(h => h.date));
+
+    // Generate working days array (INCLUSIVE) - excluding holidays
     const workingDays = [];
     const startDateForLoop = new Date(startDate + 'T00:00:00.000Z');
     const endDateForLoop = new Date(endDate + 'T00:00:00.000Z');
@@ -897,7 +933,11 @@ router.get('/history-range', authenticate, facultyAndAbove, async (req, res) => 
     const currentDate = new Date(startDateForLoop);
     while (currentDate <= endDateForLoop) {
       const dateStr = currentDate.toISOString().split('T')[0];
-      workingDays.push(dateStr);
+      // Skip weekends and holidays
+      const dayOfWeek = currentDate.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr)) {
+        workingDays.push(dateStr);
+      }
       currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
     
@@ -1065,9 +1105,11 @@ router.get('/history-range', authenticate, facultyAndAbove, async (req, res) => 
       data: {
         students: studentAttendanceData,
         workingDays: workingDays,
+        holidays: holidays,
         analytics: {
           totalStudents,
           totalWorkingDays,
+          holidayCount: holidays.length,
           averageAttendance,
           highestAttendance,
           lowestAttendance

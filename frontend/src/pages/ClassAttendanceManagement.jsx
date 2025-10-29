@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from '../components/Toast';
 import BulkUploadModal from '../components/BulkUploadModal';
+import HolidayDeclarationModal from '../components/HolidayDeclarationModal';
+import HolidayList from '../components/HolidayList';
+import AbsenceReasonReviewCard from '../components/AbsenceReasonReviewCard';
 
 const ClassAttendanceManagement = () => {
   const { classId } = useParams();
@@ -14,6 +17,9 @@ const ClassAttendanceManagement = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('mark');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [holidays, setHolidays] = useState([]);
+  const [holidayRefreshKey, setHolidayRefreshKey] = useState(0);
 
   useEffect(() => {
     if (classId) {
@@ -112,6 +118,8 @@ const ClassAttendanceManagement = () => {
     { id: 'mark', label: 'Mark Attendance', icon: '📝' },
     { id: 'edit', label: 'Edit Attendance', icon: '✏️' },
     { id: 'history', label: 'Attendance History', icon: '📊' },
+    { id: 'holidays', label: 'Holiday Management', icon: '🎉' },
+    { id: 'reviews', label: 'Absence Reviews', icon: '📋' },
     { id: 'report', label: 'Generate Report', icon: '📈' },
     { id: 'students', label: 'Student Management', icon: '👥' }
   ];
@@ -244,6 +252,37 @@ const ClassAttendanceManagement = () => {
             onToast={showToast}
           />
         )}
+        {activeTab === 'holidays' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Holiday Management
+                </h2>
+                <button
+                  onClick={() => setShowHolidayModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  + Declare Holiday
+                </button>
+              </div>
+              
+              <HolidayList 
+                classData={classData}
+                onHolidayUpdate={() => setHolidayRefreshKey(prev => prev + 1)}
+                showActions={true}
+              />
+            </div>
+          </div>
+        )}
+        {activeTab === 'reviews' && (
+          <div className="space-y-6">
+            <AbsenceReasonReviewCard 
+              department={classData?.department || user?.department}
+              classId={classData?.classId}
+            />
+          </div>
+        )}
         {activeTab === 'students' && (
           <StudentManagementTab 
             classData={classData} 
@@ -255,6 +294,17 @@ const ClassAttendanceManagement = () => {
           />
         )}
       </div>
+
+      {/* Holiday Declaration Modal */}
+      <HolidayDeclarationModal
+        isOpen={showHolidayModal}
+        onClose={() => setShowHolidayModal(false)}
+        onSuccess={(holiday) => {
+          showToast('Holiday declared successfully!', 'success');
+          setHolidayRefreshKey(prev => prev + 1);
+        }}
+        classData={classData}
+      />
     </div>
   );
 };
@@ -269,6 +319,38 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
   const [checkingAttendance, setCheckingAttendance] = useState(true);
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [isHoliday, setIsHoliday] = useState(false);
+  const [holidayInfo, setHolidayInfo] = useState(null);
+  const [checkingHoliday, setCheckingHoliday] = useState(true);
+
+  // Check if today is a holiday
+  const checkHolidayStatus = async () => {
+    if (!classData) return;
+    
+    try {
+      setCheckingHoliday(true);
+      const today = new Date().toISOString().split('T')[0];
+      const queryParams = new URLSearchParams({
+        batchYear: classData.batch,
+        section: classData.section,
+        semester: classData.semester
+      });
+
+      const response = await apiFetch({
+        url: `/api/holidays/check/${today}?${queryParams}`,
+        method: 'GET'
+      });
+
+      if (response.data.status === 'success') {
+        setIsHoliday(response.data.data.isHoliday);
+        setHolidayInfo(response.data.data.holiday);
+      }
+    } catch (error) {
+      console.error('Error checking holiday status:', error);
+    } finally {
+      setCheckingHoliday(false);
+    }
+  };
 
   // Check attendance status when component loads
   useEffect(() => {
@@ -276,6 +358,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
       console.log('📋 Component loaded, checking attendance for class:', classData.classId);
       console.log('📋 Full class data:', classData);
       checkAttendanceExists();
+      checkHolidayStatus();
     } else {
       console.log('📋 No class data available yet');
     }
@@ -576,18 +659,53 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             <div>
               <h2 className="text-lg font-medium text-gray-900">Mark Daily Attendance</h2>
               <p className="text-sm text-gray-500">Mark attendance for today's class</p>
+              {checkingHoliday ? (
+                <p className="text-sm text-blue-500">Checking holiday status...</p>
+              ) : isHoliday ? (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="flex items-center">
+                    <span className="text-yellow-600 text-lg mr-2">🎉</span>
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800">
+                        Today is a holiday: {holidayInfo?.reason}
+                      </p>
+                      <p className="text-xs text-yellow-600">
+                        {holidayInfo?.scope === 'global' ? 'Global holiday' : 'Class holiday'} - 
+                        Cannot mark attendance
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <button
-              onClick={checkAttendanceExists}
-              disabled={checkingAttendance}
+              onClick={() => {
+                checkAttendanceExists();
+                checkHolidayStatus();
+              }}
+              disabled={checkingAttendance || checkingHoliday}
               className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50"
             >
-              {checkingAttendance ? 'Refreshing...' : 'Refresh Status'}
+              {checkingAttendance || checkingHoliday ? 'Refreshing...' : 'Refresh Status'}
             </button>
           </div>
         </div>
       <div className="p-6">
-        <form onSubmit={handleMarkAttendance} className="space-y-6">
+        {isHoliday ? (
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">🎉</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Holiday - No Class Today
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {holidayInfo?.reason} - Attendance cannot be marked on holidays
+            </p>
+            <p className="text-sm text-gray-500">
+              Use the Holiday Management tab to view or manage holidays
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleMarkAttendance} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -659,6 +777,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 </button>
             </div>
           </form>
+        )}
 
         {/* Students List */}
         <div className="mt-8">
@@ -1250,7 +1369,9 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
             status: record.status,
             remarks: record.remarks,
             markedBy: record.markedBy,
-            timestamp: record.timestamp
+            timestamp: record.timestamp,
+            reviewStatus: record.reviewStatus,
+            facultyNote: record.facultyNote
           }));
           
           setAttendanceHistory(formattedRecords);
@@ -2270,8 +2391,28 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                               {getStatusIcon(record.status)} {record.status}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {record.remarks || '-'}
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            <div className="max-w-xs">
+                              {record.remarks && record.remarks !== '-' ? (
+                                <div>
+                                  <p className="text-gray-900">{record.remarks}</p>
+                                  {record.reviewStatus && (
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1 ${
+                                      record.reviewStatus === 'Reviewed' 
+                                        ? 'bg-green-100 text-green-800' 
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {record.reviewStatus}
+                                    </span>
+                                  )}
+                                  {record.facultyNote && (
+                                    <p className="text-xs text-gray-600 mt-1 italic">
+                                      Faculty: {record.facultyNote}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : '-'}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {record.markedBy || '-'}

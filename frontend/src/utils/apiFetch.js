@@ -7,6 +7,7 @@ export const apiFetch = async (options) => {
     url,
     method = 'GET',
     data,
+    params,
     headers = {},
     responseType = 'json'
   } = options;
@@ -18,7 +19,7 @@ export const apiFetch = async (options) => {
   }
 
   try {
-    const res = await axios({ url, method, data, headers, responseType });
+    const res = await axios({ url, method, data, params, headers, responseType });
     return res;
   } catch (error) {
     // If unauthorized, try refresh flow
@@ -31,7 +32,7 @@ export const apiFetch = async (options) => {
           localStorage.setItem('accessToken', newAccess);
           axios.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
           // retry
-          const retry = await axios({ url, method, data, headers, responseType });
+          const retry = await axios({ url, method, data, params, headers, responseType });
           return retry;
         }
       } catch (e) {

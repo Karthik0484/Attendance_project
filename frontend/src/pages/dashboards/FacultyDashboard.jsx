@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../utils/apiFetch';
+import AbsenceReasonReviewCard from '../../components/AbsenceReasonReviewCard';
 
 const FacultyDashboard = () => {
   const { user, logout } = useAuth();
@@ -120,6 +121,13 @@ const FacultyDashboard = () => {
             <p className="mt-2 text-gray-600">
               Manage your assigned classes and student data
             </p>
+          </div>
+
+          {/* Pending Absence Reasons Section */}
+          <div className="mb-8">
+            <AbsenceReasonReviewCard 
+              department={faculty?.department || user?.department}
+            />
           </div>
 
           {/* Assigned Classes Section */}

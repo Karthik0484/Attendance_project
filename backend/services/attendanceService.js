@@ -10,6 +10,7 @@ import Faculty from '../models/Faculty.js';
 import { getISTDate, normalizeDateToUTC } from '../utils/dateUtils.js';
 import { getStudentsProgressive } from './progressiveStudentQueryService.js';
 import { getFacultyClassAssignment } from './facultyClassMappingService.js';
+import { getHolidaysForClass, isHoliday, getHolidayCountForAnalytics } from './holidayService.js';
 
 /**
  * Mark attendance for a class on a specific date
@@ -56,6 +57,26 @@ export async function markAttendance(options) {
       section,
       department: classInfo.data.department
     };
+
+    // Check if the date is a holiday
+    const holidayCheck = await isHoliday({
+      date: normalizedDate,
+      batchYear: batch,
+      section: section,
+      semester: semester,
+      department: classContext.department
+    });
+
+    if (holidayCheck.success && holidayCheck.data.isHoliday) {
+      return {
+        success: false,
+        error: {
+          message: `Cannot mark attendance on ${holidayCheck.data.holiday.reason} (Holiday)`,
+          code: 'HOLIDAY_DATE',
+          holiday: holidayCheck.data.holiday
+        }
+      };
+    }
     
     // Get students using the same method as frontend display
     const constructedClassId = `${classContext.batch}_${classContext.year}_${classContext.semester}_${classContext.section}`;
@@ -423,6 +444,41 @@ export async function generateAttendanceReport(options) {
   try {
     console.log('📊 Generating attendance report:', { facultyId, classId, startDate, endDate });
     
+    // Parse classId to get class context
+    const parts = classId.split('_');
+    if (parts.length !== 4) {
+      return {
+        success: false,
+        error: {
+          message: 'Invalid classId format',
+          code: 'INVALID_CLASS_ID'
+        }
+      };
+    }
+    
+    const [batch, year, semester, section] = parts;
+    const classContext = {
+      batch,
+      year,
+      semester,
+      section,
+      department: facultyId.department || 'CSE' // Assuming department is available
+    };
+    
+    // Get holidays for the date range
+    const holidayResult = await getHolidayCountForAnalytics({
+      batchYear: batch,
+      section: section,
+      semester: semester,
+      department: classContext.department,
+      startDate: startDate || new Date().toISOString().split('T')[0],
+      endDate: endDate || new Date().toISOString().split('T')[0]
+    });
+    
+    const holidays = holidayResult.success ? holidayResult.data.holidays : [];
+    const workingDays = holidayResult.success ? holidayResult.data.workingDays : 0;
+    const holidayCount = holidayResult.success ? holidayResult.data.holidayCount : 0;
+    
     // Get all students in the class
     const students = await Student.find({
       classId: classId,
@@ -464,7 +520,8 @@ export async function generateAttendanceReport(options) {
       });
       
       const presentDays = totalDays - absentDays;
-      const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100 * 100) / 100 : 0;
+      // Calculate attendance percentage based on working days (excluding holidays)
+      const attendancePercentage = workingDays > 0 ? Math.round((presentDays / workingDays) * 100 * 100) / 100 : 0;
       
       return {
         rollNumber: student.rollNumber,
@@ -473,6 +530,8 @@ export async function generateAttendanceReport(options) {
         totalDays: totalDays,
         presentDays: presentDays,
         absentDays: absentDays,
+        workingDays: workingDays,
+        holidayDays: holidayCount,
         attendancePercentage: attendancePercentage
       };
     });
@@ -482,8 +541,8 @@ export async function generateAttendanceReport(options) {
     const totalPossibleAttendance = students.length * totalDays;
     const totalAbsentCount = attendanceRecords.reduce((sum, record) => sum + record.totalAbsent, 0);
     const totalPresentCount = totalPossibleAttendance - totalAbsentCount;
-    const classAttendancePercentage = totalPossibleAttendance > 0 ? 
-      Math.round((totalPresentCount / totalPossibleAttendance) * 100 * 100) / 100 : 0;
+    const classAttendancePercentage = workingDays > 0 ? 
+      Math.round((totalPresentCount / (students.length * workingDays)) * 100 * 100) / 100 : 0;
     
     console.log('✅ Attendance report generated successfully');
     
@@ -494,8 +553,11 @@ export async function generateAttendanceReport(options) {
           classId: classId,
           totalStudents: students.length,
           totalDays: totalDays,
+          workingDays: workingDays,
+          holidayDays: holidayCount,
           classAttendancePercentage: classAttendancePercentage
         },
+        holidays: holidays,
         studentReports: studentReports,
         summary: {
           totalStudents: students.length,

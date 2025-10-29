@@ -32,6 +32,39 @@ const attendanceRecordSchema = new mongoose.Schema({
     enum: ['present', 'absent'],
     required: true,
     default: 'present'
+  },
+  // Student-submitted reason for absence
+  reason: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Reason cannot exceed 500 characters'],
+    default: null
+  },
+  // Faculty note/comment
+  facultyNote: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Faculty note cannot exceed 500 characters'],
+    default: null
+  },
+  // Review status for submitted reasons
+  reviewStatus: {
+    type: String,
+    enum: ['Pending', 'Reviewed', 'Not Applicable'],
+    default: 'Not Applicable'
+  },
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  reviewedAt: {
+    type: Date,
+    default: null
+  },
+  reasonSubmittedAt: {
+    type: Date,
+    default: null
   }
 }, { _id: false });
 

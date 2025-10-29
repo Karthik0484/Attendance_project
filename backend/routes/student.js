@@ -10,9 +10,9 @@ import { getStudentsForFaculty, createOrUpdateStudent } from '../services/unifie
 
 const router = express.Router();
 
-// All student routes require authentication and faculty or above role
+// All student routes require authentication
+// Note: facultyAndAbove authorization is applied individually to routes that need it
 router.use(authenticate);
-router.use(facultyAndAbove);
 
 // Helper: normalize year and semester inputs to stored format
 const normalizeYear = (yearInput) => {
@@ -288,15 +288,36 @@ router.post('/', authenticate, facultyAndAbove, [
     };
 
     // Use unified service to create or update student
+    console.log('📝 Creating student with context:', {
+      studentName: studentData.name,
+      batchYear: classContext.batchYear,
+      year: classContext.year,
+      semesterName: classContext.semesterName,
+      section: classContext.section
+    });
+    
     const result = await createOrUpdateStudent(studentData, classContext, facultyId, req.user._id);
 
     if (!result.success) {
+      console.error('❌ Student creation failed:', result.message);
       return res.status(400).json({
         success: false,
         message: result.message,
         details: result.conflictDetails || null
       });
     }
+    
+    // Log the created student to verify semesters array
+    console.log('✅ Student creation result:', {
+      action: result.action,
+      studentId: result.student._id,
+      studentName: result.student.name,
+      semestersCount: result.student.semesters?.length || 0,
+      semesters: result.student.semesters?.map(s => ({
+        name: s.semesterName,
+        classId: s.classId
+      })) || []
+    });
 
     // Create final audit log with student details
     await createAuditLog({
@@ -412,6 +433,32 @@ router.post('/create', authenticate, facultyAndAbove, [
     });
     await user.save();
 
+    // Extract section from classAssigned (e.g., '1A' -> 'A')
+    const section = classAssigned.replace(/\d/g, '');
+    
+    // Generate batch year
+    const currentYear = new Date().getFullYear();
+    const batch = `${currentYear}-${currentYear + 4}`;
+    
+    // Generate classId in same format as bulk upload: batch_year_semester_section
+    const classIdForSemester = `${batch}_${year}_${semester}_${section}`;
+    
+    console.log('🏫 Generated classId:', classIdForSemester);
+    
+    // Create semester entry for the semesters array
+    const semesterEntry = {
+      semesterName: semester,
+      year: year,
+      section: section,
+      batch: batch,
+      department: currentUser.department,
+      facultyId: assignedFaculty._id,
+      classAssigned: classAssigned,
+      classId: classIdForSemester,
+      status: 'active',
+      createdBy: currentUser._id
+    };
+
     // Create student details and link userId
     const student = new Student({
       userId: user._id,
@@ -419,14 +466,32 @@ router.post('/create', authenticate, facultyAndAbove, [
       name,
       email: email.toLowerCase(),
       mobile,
+      parentContact: mobile, // Use mobile as parent contact if not provided separately
+      department: currentUser.department,
+      batchYear: batch,
+      section: section,
+      
+      // Populate semesters array with first semester
+      semesters: [semesterEntry],
+      
+      // Also keep old fields for backward compatibility
       classAssigned,
       year,
       semester,
       facultyId: assignedFaculty._id,
-      department: currentUser.department,
+      classId: classIdForSemester,
+      
+      status: 'active',
       createdBy: currentUser._id
     });
     await student.save();
+    
+    console.log('✅ Student created with semesters array:', {
+      studentId: student._id,
+      name: student.name,
+      semestersCount: student.semesters.length,
+      firstSemester: student.semesters[0]?.semesterName
+    });
 
     const studentResponse = student.toObject();
 
@@ -509,6 +574,36 @@ router.post('/add', authenticate, facultyAndAbove, [
     });
     await user.save();
 
+    // Extract section from classId (e.g., '1A' -> 'A')
+    const section = classId.replace(/\d/g, '');
+    const yearNumber = classId.replace(/\D/g, ''); // Extract number from classId
+    
+    // Generate year with suffix
+    const yearWithSuffix = `${yearNumber}${yearNumber === '1' ? 'st' : yearNumber === '2' ? 'nd' : yearNumber === '3' ? 'rd' : 'th'} Year`;
+    
+    // Generate batch year
+    const currentYear = new Date().getFullYear();
+    const batch = `${currentYear}-${currentYear + 4}`;
+    
+    // Generate classId in same format as bulk upload: batch_year_semester_section
+    const classIdForSemester = `${batch}_${yearWithSuffix}_Sem 1_${section}`;
+    
+    console.log('🏫 Generated classId:', classIdForSemester);
+    
+    // Create semester entry for the semesters array
+    const semesterEntry = {
+      semesterName: 'Sem 1',
+      year: yearWithSuffix,
+      section: section,
+      batch: batch,
+      department: currentUser.department,
+      facultyId: assignedFaculty._id,
+      classAssigned: classId,
+      classId: classIdForSemester,
+      status: 'active',
+      createdBy: currentUser._id
+    };
+
     // Create student details and link userId
     const student = new Student({
       userId: user._id,
@@ -516,14 +611,32 @@ router.post('/add', authenticate, facultyAndAbove, [
       name,
       email: email.toLowerCase(),
       mobile,
+      parentContact: mobile, // Use mobile as parent contact if not provided separately
+      department: currentUser.department,
+      batchYear: batch,
+      section: section,
+      
+      // Populate semesters array with first semester
+      semesters: [semesterEntry],
+      
+      // Also keep old fields for backward compatibility
       classAssigned: classId,
-      year: '1st', // Default values for alias route
+      year: yearWithSuffix,
       semester: 'Sem 1',
       facultyId: assignedFaculty._id,
-      department: currentUser.department,
+      classId: classIdForSemester,
+      
+      status: 'active',
       createdBy: currentUser._id
     });
     await student.save();
+    
+    console.log('✅ Student created with semesters array:', {
+      studentId: student._id,
+      name: student.name,
+      semestersCount: student.semesters.length,
+      firstSemester: student.semesters[0]?.semesterName
+    });
 
     res.status(201).json({
       message: 'Student added successfully',
@@ -1606,42 +1719,9 @@ router.put('/:id/update', authenticate, facultyAndAbove, [
   }
 });
 
-// @desc    Get student semester enrollments
-// @route   GET /api/students/:id/semesters
-// @access  Faculty and above
-router.get('/:id/semesters', authenticate, facultyAndAbove, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const student = await Student.findById(id).select('rollNumber name status semesters department');
-    
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: 'Student not found'
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        id: student._id,
-        rollNumber: student.rollNumber,
-        name: student.name,
-        status: student.status,
-        department: student.department,
-        semesters: student.semesters || [],
-        totalSemesters: student.semesters?.length || 0
-      }
-    });
-  } catch (error) {
-    console.error('Get student semesters error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching student semesters'
-    });
-  }
-});
+// NOTE: This route has been removed to avoid conflict with the more comprehensive
+// /:userId/semesters route below (line ~2022) which properly handles both student 
+// and faculty authorization
 
 // @desc    Verify student deletion (check if semesters array is cleared)
 // @route   GET /api/students/:id/verify-deletion
@@ -1825,20 +1905,26 @@ router.get('/:id/profile', authenticate, async (req, res) => {
     const { id } = req.params;
     const currentUser = req.user;
 
+    console.log('🔍 Fetching profile for student ID:', id);
+    console.log('👤 Current user:', currentUser.email, 'Role:', currentUser.role);
+
     const student = await Student.findById(id)
-      .populate('userId', 'email status')
-      .populate('facultyId', 'name');
+      .populate('userId', 'name email mobile status')
+      .populate('facultyId', 'name email');
 
     if (!student) {
+      console.log('❌ Student not found for ID:', id);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
 
+    console.log('✅ Student found:', student.rollNumber, student.name);
+
     // Authorization: Faculty can view students from their department, students can view their own data
     if (currentUser.role === 'student') {
-      if (currentUser._id.toString() !== student.userId.toString()) {
+      if (currentUser._id.toString() !== student.userId._id.toString()) {
         return res.status(403).json({
           success: false,
           message: 'You can only view your own profile'
@@ -1852,18 +1938,44 @@ router.get('/:id/profile', authenticate, async (req, res) => {
     }
 
     // Get attendance statistics
+    console.log('📊 Fetching attendance stats...');
     const attendanceStats = await getAttendanceStats(student._id, student.department);
+    console.log('📊 Attendance stats retrieved:', attendanceStats);
+
+    // Format student object for frontend
+    const studentData = {
+      _id: student._id,
+      id: student._id,
+      rollNumber: student.rollNumber,
+      name: student.name || student.userId?.name,
+      email: student.email || student.userId?.email,
+      mobile: student.mobile || student.userId?.mobile,
+      parentContact: student.parentContact,
+      address: student.address,
+      dateOfBirth: student.dateOfBirth,
+      department: student.department,
+      batchYear: student.batchYear,
+      section: student.section,
+      semester: student.semester,
+      year: student.year,
+      classAssigned: student.classAssigned,
+      status: student.status,
+      facultyId: student.facultyId,
+      semesters: student.semesters || [],
+      createdAt: student.createdAt,
+      updatedAt: student.updatedAt
+    };
 
     res.json({
       success: true,
       data: {
-        student,
+        student: studentData,
         attendanceStats
       }
     });
 
   } catch (error) {
-    console.error('Get student profile error:', error);
+    console.error('❌ Get student profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while fetching student profile'
@@ -1871,16 +1983,472 @@ router.get('/:id/profile', authenticate, async (req, res) => {
   }
 });
 
+// @desc    Get all enrolled semesters for a student
+// @route   GET /api/students/:userId/semesters
+// @access  Student (own data) or Faculty/Admin
+router.get('/:userId/semesters', authenticate, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUser = req.user;
+
+    console.log('📚 Fetching semesters for user:', userId);
+
+    // Find student by userId
+    const student = await Student.findOne({ userId, status: 'active' })
+      .populate('semesters.facultyId', 'name email')
+      .populate('facultyId', 'name email')
+      .select('semesters name rollNumber department batchYear section classId semester year classAssigned facultyId');
+
+    console.log('🔍 Student found:', student ? 'Yes' : 'No');
+    if (student) {
+      console.log('📋 Student details:', {
+        _id: student._id,
+        userId: student.userId,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        department: student.department,
+        batchYear: student.batchYear,
+        section: student.section,
+        semester: student.semester,
+        year: student.year,
+        classId: student.classId,
+        classAssigned: student.classAssigned,
+        facultyId: student.facultyId,
+        semestersArrayLength: student.semesters?.length || 0,
+        hasSemesters: !!(student.semesters && student.semesters.length > 0),
+        hasOldStructure: !!(student.classId && student.semester)
+      });
+    }
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found or inactive'
+      });
+    }
+
+    // Authorization check
+    if (currentUser.role === 'student' && currentUser._id.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Handle semesters array
+    let semestersToProcess = [];
+    
+    if (student.semesters && student.semesters.length > 0) {
+      // Use the semesters array (preferred method)
+      console.log('✅ Using semesters array:', student.semesters.length, 'semesters');
+      console.log('📋 Semesters:', student.semesters.map(s => ({
+        name: s.semesterName,
+        classId: s.classId,
+        section: s.section
+      })));
+      semestersToProcess = student.semesters;
+    } else if (student.classId && student.semester) {
+      // FALLBACK: Create virtual semester from old structure (for legacy data only)
+      console.warn('⚠️ Using fallback virtual semester from old structure - student should be migrated');
+      const virtualSemester = {
+        _id: student._id,
+        semesterName: student.semester,
+        year: student.year || '1st',
+        section: student.section,
+        classAssigned: student.classAssigned || student.section,
+        classId: student.classId,
+        department: student.department,
+        batch: student.batchYear,
+        status: 'active',
+        facultyId: student.facultyId,
+        createdAt: student.createdAt
+      };
+      semestersToProcess = [virtualSemester];
+      console.log('📌 Virtual semester created (legacy fallback)');
+    } else {
+      console.error('❌ No semester data found!', {
+        hasSemesters: !!(student.semesters && student.semesters.length > 0),
+        hasClassId: !!student.classId,
+        hasSemesterField: !!student.semester,
+        studentData: {
+          classId: student.classId,
+          semester: student.semester,
+          year: student.year,
+          section: student.section,
+          classAssigned: student.classAssigned
+        }
+      });
+      return res.status(404).json({
+        success: false,
+        message: 'No semester data found for this student. Please contact faculty to assign you to a class.',
+        debug: {
+          hasSemestersArray: !!(student.semesters && student.semesters.length > 0),
+          hasOldStructure: !!(student.classId && student.semester)
+        }
+      });
+    }
+
+    console.log('📊 Total semesters to process:', semestersToProcess.length);
+
+    // Get attendance stats for each semester
+    const semestersWithStats = await Promise.all(
+      semestersToProcess.map(async (semester) => {
+        // Count attendance for this semester's classId
+        const attendanceCount = await Attendance.countDocuments({
+          classId: semester.classId,
+          'records.studentId': student._id
+        });
+
+        // Get attendance percentage for this semester
+        const attendanceDocs = await Attendance.find({
+          classId: semester.classId,
+          'records.studentId': student._id
+        });
+
+        // Get holidays for this semester (both global and class-specific)
+        const Holiday = (await import('../models/Holiday.js')).default;
+        const holidays = await Holiday.find({
+          $or: [
+            // Global holidays for this department
+            {
+              department: semester.department,
+              scope: 'global',
+              isActive: true,
+              isDeleted: false
+            },
+            // Class-specific holidays
+            {
+              department: semester.department,
+              scope: 'class',
+              batchYear: semester.batch,
+              section: semester.section,
+              semester: semester.semesterName,
+              isActive: true,
+              isDeleted: false
+            }
+          ]
+        }).select('date');
+        // Normalize holiday dates to YYYY-MM-DD strings
+        const holidayDates = new Set(holidays.map(h => 
+          typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0]
+        ));
+
+        let presentDays = 0;
+        let totalDays = 0;
+
+        attendanceDocs.forEach(doc => {
+          const studentRecord = doc.records.find(r => r.studentId.toString() === student._id.toString());
+          // Normalize attendance date for comparison
+          const attendanceDateStr = typeof doc.date === 'string' ? doc.date : doc.date.toISOString().split('T')[0];
+          if (studentRecord && !holidayDates.has(attendanceDateStr)) {
+            totalDays++;
+            if (studentRecord.status === 'present') {
+              presentDays++;
+            }
+          }
+        });
+
+        const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+        return {
+          _id: semester._id,
+          semesterName: semester.semesterName,
+          year: semester.year,
+          section: semester.section,
+          classAssigned: semester.classAssigned,
+          classId: semester.classId,
+          department: semester.department,
+          batch: semester.batch,
+          status: semester.status,
+          faculty: semester.facultyId ? {
+            name: semester.facultyId.name,
+            email: semester.facultyId.email
+          } : null,
+          stats: {
+            totalClasses: totalDays,
+            presentDays,
+            absentDays: totalDays - presentDays,
+            attendancePercentage
+          },
+          createdAt: semester.createdAt
+        };
+      })
+    );
+
+    // Sort by semester name (Sem 1, Sem 2, etc.)
+    semestersWithStats.sort((a, b) => {
+      const semA = parseInt(a.semesterName.replace('Sem ', ''));
+      const semB = parseInt(b.semesterName.replace('Sem ', ''));
+      return semA - semB;
+    });
+
+    console.log(`✅ Found ${semestersWithStats.length} semesters for student`);
+
+    const responseData = {
+      success: true,
+      data: {
+        student: {
+          name: student.name,
+          rollNumber: student.rollNumber,
+          department: student.department,
+          batchYear: student.batchYear,
+          section: student.section
+        },
+        semesters: semestersWithStats,
+        total: semestersWithStats.length
+      }
+    };
+
+    console.log('📤 Sending response:', JSON.stringify({
+      success: responseData.success,
+      studentName: responseData.data.student.name,
+      semesterCount: responseData.data.semesters.length,
+      semesters: responseData.data.semesters.map(s => ({
+        name: s.semesterName,
+        classId: s.classId,
+        percentage: s.stats?.attendancePercentage
+      }))
+    }, null, 2));
+
+    res.json(responseData);
+
+  } catch (error) {
+    console.error('❌ Get student semesters error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch student semesters'
+    });
+  }
+});
+
+// @desc    Get attendance details for a specific semester
+// @route   GET /api/students/:userId/semesters/:semesterId/attendance
+// @access  Student (own data) or Faculty/Admin
+router.get('/:userId/semesters/:semesterId/attendance', authenticate, async (req, res) => {
+  try {
+    const { userId, semesterId } = req.params;
+    const currentUser = req.user;
+
+    console.log('📊 Fetching semester attendance:', { userId, semesterId });
+
+    // Find student
+    const student = await Student.findOne({ userId, status: 'active' });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Authorization check
+    if (currentUser.role === 'student' && currentUser._id.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Find the specific semester (handle backward compatibility)
+    let semester = null;
+    
+    if (student.semesters && student.semesters.length > 0) {
+      // Try to find in semesters array
+      semester = student.semesters.id(semesterId);
+    }
+    
+    // If not found in array, check if this is the student's own ID (virtual semester from old structure)
+    if (!semester && semesterId === student._id.toString() && student.classId && student.semester) {
+      console.log('📌 Using virtual semester from old structure');
+      semester = {
+        _id: student._id,
+        semesterName: student.semester,
+        year: student.year || '1st',
+        section: student.section,
+        classAssigned: student.classAssigned || student.section,
+        classId: student.classId,
+        department: student.department,
+        batch: student.batchYear,
+        status: 'active'
+      };
+    }
+
+    if (!semester) {
+      return res.status(404).json({
+        success: false,
+        message: 'Semester not found'
+      });
+    }
+
+    // Get all attendance for this semester's classId
+    const attendanceDocs = await Attendance.find({
+      classId: semester.classId,
+      'records.studentId': student._id
+    }).sort({ date: -1 });
+
+    // Get holidays (both global and class-specific)
+    const Holiday = (await import('../models/Holiday.js')).default;
+    const holidays = await Holiday.find({
+      $or: [
+        // Global holidays for this department
+        {
+          department: semester.department,
+          scope: 'global',
+          isActive: true,
+          isDeleted: false
+        },
+        // Class-specific holidays
+        {
+          department: semester.department,
+          scope: 'class',
+          batchYear: semester.batch,
+          section: semester.section,
+          semester: semester.semesterName,
+          isActive: true,
+          isDeleted: false
+        }
+      ]
+    }).select('date reason scope');
+    
+    console.log(`🎉 Found ${holidays.length} holidays for semester:`, {
+      department: semester.department,
+      batch: semester.batch,
+      section: semester.section,
+      semester: semester.semesterName,
+      holidayDates: holidays.map(h => h.date)
+    });
+    
+    // Create holiday map with normalized date strings (YYYY-MM-DD)
+    const holidayMap = new Map(holidays.map(h => {
+      const normalizedDate = typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0];
+      return [normalizedDate, h.reason];
+    }));
+
+    // Extract student's attendance records
+    const attendanceRecords = [];
+    const attendanceDatesSet = new Set(); // Track which dates have attendance records
+    let presentDays = 0;
+    let absentDays = 0;
+    let holidayDays = 0;
+
+    // Process attendance records
+    attendanceDocs.forEach(doc => {
+      const studentRecord = doc.records.find(r => r.studentId.toString() === student._id.toString());
+      if (studentRecord) {
+        // Normalize attendance date to YYYY-MM-DD string for comparison
+        const attendanceDateStr = typeof doc.date === 'string' ? doc.date : doc.date.toISOString().split('T')[0];
+        attendanceDatesSet.add(attendanceDateStr);
+        const isHoliday = holidayMap.has(attendanceDateStr);
+        
+        const record = {
+          date: doc.date,
+          status: isHoliday ? 'Holiday' : (studentRecord.status === 'present' ? 'Present' : 'Absent'),
+          reason: studentRecord.reason || null,
+          reviewStatus: studentRecord.reviewStatus || 'Not Applicable',
+          facultyNote: studentRecord.facultyNote || null,
+          reasonSubmittedAt: studentRecord.reasonSubmittedAt || null,
+          holidayReason: isHoliday ? holidayMap.get(attendanceDateStr) : null
+        };
+
+        attendanceRecords.push(record);
+
+        if (isHoliday) {
+          holidayDays++;
+        } else if (studentRecord.status === 'present') {
+          presentDays++;
+        } else {
+          absentDays++;
+        }
+      }
+    });
+
+    // Add holidays that don't have attendance records
+    holidays.forEach(holiday => {
+      const normalizedDate = typeof holiday.date === 'string' ? holiday.date : holiday.date.toISOString().split('T')[0];
+      
+      // If this holiday date doesn't have an attendance record, add it
+      if (!attendanceDatesSet.has(normalizedDate)) {
+        attendanceRecords.push({
+          date: normalizedDate,
+          status: 'Holiday',
+          reason: null,
+          reviewStatus: 'Not Applicable',
+          facultyNote: null,
+          reasonSubmittedAt: null,
+          holidayReason: holiday.reason
+        });
+        holidayDays++;
+      }
+    });
+
+    // Sort attendance records by date (newest first)
+    attendanceRecords.sort((a, b) => {
+      const dateA = typeof a.date === 'string' ? new Date(a.date) : a.date;
+      const dateB = typeof b.date === 'string' ? new Date(b.date) : b.date;
+      return dateB - dateA;
+    });
+
+    const totalWorkingDays = presentDays + absentDays;
+    const attendancePercentage = totalWorkingDays > 0 
+      ? Math.round((presentDays / totalWorkingDays) * 100) 
+      : 0;
+
+    console.log(`📊 Final stats:`, {
+      totalRecords: attendanceRecords.length,
+      presentDays,
+      absentDays,
+      holidayDays,
+      totalWorkingDays,
+      attendancePercentage
+    });
+
+    res.json({
+      success: true,
+      data: {
+        semester: {
+          _id: semester._id,
+          semesterName: semester.semesterName,
+          year: semester.year,
+          section: semester.section,
+          classAssigned: semester.classAssigned,
+          classId: semester.classId,
+          department: semester.department,
+          batch: semester.batch
+        },
+        student: {
+          name: student.name,
+          rollNumber: student.rollNumber,
+          department: student.department
+        },
+        stats: {
+          totalWorkingDays,
+          presentDays,
+          absentDays,
+          holidayDays,
+          attendancePercentage
+        },
+        attendance: attendanceRecords
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get semester attendance error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch semester attendance'
+    });
+  }
+});
+
 // Helper function to get attendance statistics
 async function getAttendanceStats(studentId, department) {
   try {
-    // Get all attendance records for this student
-    const attendanceRecords = await Attendance.find({
-      studentId: studentId,
-      department: department
-    }).sort({ date: -1 });
-
-    if (!attendanceRecords || attendanceRecords.length === 0) {
+    console.log('📊 Getting attendance stats for student:', studentId, 'department:', department);
+    
+    // Get the student to find their classId and info
+    const student = await Student.findById(studentId);
+    if (!student) {
+      console.log('❌ Student not found');
       return {
         totalDays: 0,
         presentDays: 0,
@@ -1890,27 +2458,95 @@ async function getAttendanceStats(studentId, department) {
       };
     }
 
-    const totalDays = attendanceRecords.length;
-    const presentDays = attendanceRecords.filter(record => record.status === 'Present').length;
-    const absentDays = attendanceRecords.filter(record => record.status === 'Absent').length;
+    console.log('👤 Student:', student.rollNumber, student.name);
+    
+    // Find all attendance documents for the student's department
+    // The student's attendance is stored in the records array of class-level attendance documents
+    const attendanceDocs = await Attendance.find({
+      department: department,
+      'records.studentId': studentId
+    }).sort({ date: -1 });
+
+    console.log(`📚 Found ${attendanceDocs.length} attendance documents`);
+
+    if (!attendanceDocs || attendanceDocs.length === 0) {
+      console.log('❌ No attendance records found');
+      return {
+        totalDays: 0,
+        presentDays: 0,
+        absentDays: 0,
+        attendancePercentage: 0,
+        recentAttendance: []
+      };
+    }
+
+    // Get holidays for this department to exclude from percentage
+    const Holiday = (await import('../models/Holiday.js')).default;
+    const holidays = await Holiday.find({
+      department: department,
+      isActive: true,
+      isDeleted: false
+    }).select('date');
+
+    // Normalize holiday dates to YYYY-MM-DD strings
+    const holidayDates = new Set(holidays.map(h => 
+      typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0]
+    ));
+    console.log(`🎉 Found ${holidayDates.size} holidays for department`);
+
+    // Extract this student's attendance from each document's records array
+    const studentAttendance = [];
+    attendanceDocs.forEach(doc => {
+      const studentRecord = doc.records.find(r => r.studentId.toString() === studentId.toString());
+      if (studentRecord) {
+        // Normalize attendance date for comparison
+        const attendanceDateStr = typeof doc.date === 'string' ? doc.date : doc.date.toISOString().split('T')[0];
+        const isHoliday = holidayDates.has(attendanceDateStr);
+        studentAttendance.push({
+          date: doc.date,
+          status: isHoliday ? 'Holiday' : (studentRecord.status === 'present' ? 'Present' : 'Absent'),
+          reason: studentRecord.reason || null,
+          reviewStatus: studentRecord.reviewStatus || 'Not Applicable',
+          facultyNote: studentRecord.facultyNote || null,
+          reasonSubmittedAt: studentRecord.reasonSubmittedAt || null
+        });
+      }
+    });
+
+    console.log(`📊 Extracted ${studentAttendance.length} attendance records for student`);
+
+    // Calculate stats excluding holidays
+    const workingDays = studentAttendance.filter(record => record.status !== 'Holiday');
+    const totalDays = workingDays.length;
+    const presentDays = workingDays.filter(record => record.status === 'Present').length;
+    const absentDays = workingDays.filter(record => record.status === 'Absent').length;
+    const holidayDays = studentAttendance.filter(record => record.status === 'Holiday').length;
     const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
+    console.log(`📈 Stats: Total=${totalDays}, Present=${presentDays}, Absent=${absentDays}, Holidays=${holidayDays}, Percentage=${attendancePercentage}%`);
+
     // Get recent attendance (last 10 records)
-    const recentAttendance = attendanceRecords.slice(0, 10).map(record => ({
-      date: record.date,
-      status: record.status,
-      reason: record.reason || null
-    }));
+    const recentAttendance = studentAttendance.slice(0, 10);
+
+    // Count pending and reviewed reasons
+    const pendingReasons = studentAttendance.filter(r => r.reviewStatus === 'Pending').length;
+    const reviewedReasons = studentAttendance.filter(r => r.reviewStatus === 'Reviewed').length;
 
     return {
       totalDays,
       presentDays,
       absentDays,
+      holidayDays,
       attendancePercentage,
-      recentAttendance
+      recentAttendance,
+      reasonStats: {
+        pendingReasons,
+        reviewedReasons,
+        totalSubmitted: pendingReasons + reviewedReasons
+      }
     };
   } catch (error) {
-    console.error('Error getting attendance stats:', error);
+    console.error('❌ Error getting attendance stats:', error);
     return {
       totalDays: 0,
       presentDays: 0,

@@ -6,6 +6,7 @@ import Toast from '../components/Toast';
 import AddStudentModal from '../components/AddStudentModal';
 import EditStudentModal from '../components/EditStudentModal';
 import BulkUploadModal from '../components/BulkUploadModal';
+import ClassHolidayCard from '../components/ClassHolidayCard';
 
 const StudentManagementPage = () => {
   const { user } = useAuth();
@@ -328,6 +329,21 @@ const StudentManagementPage = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Holiday Notification */}
+        {batch && semester && section && (
+          <div className="mb-6">
+            <ClassHolidayCard 
+              classData={{ 
+                batch, 
+                section, 
+                semester,
+                department 
+              }} 
+              compact={true}
+            />
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>

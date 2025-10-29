@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
+import ClassHolidayCard from './ClassHolidayCard';
 import './StudentProfileDetail.css';
 
 // Icons for better visual hierarchy
@@ -216,9 +217,50 @@ const getFacultyName = (student) => {
 };
 
 // Attendance Calendar Component
-const AttendanceCalendar = ({ attendanceData, compact = false }) => {
+const AttendanceCalendar = ({ attendanceData, student, compact = false }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [monthlyData, setMonthlyData] = useState({});
+  const [holidays, setHolidays] = useState([]);
+
+  // Fetch holidays for the current month
+  useEffect(() => {
+    if (student) {
+      fetchHolidays();
+      
+      // Poll for holiday updates every 30 seconds
+      const interval = setInterval(() => {
+        fetchHolidays();
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [student, currentMonth]);
+
+  const fetchHolidays = async () => {
+    try {
+      const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+
+      const queryParams = new URLSearchParams({
+        startDate: startOfMonth.toISOString().split('T')[0],
+        endDate: endOfMonth.toISOString().split('T')[0],
+        batchYear: student.batchYear,
+        section: student.section,
+        semester: student.semester || getCurrentSemester(student)
+      });
+
+      const response = await apiFetch({
+        url: `/api/holidays/analytics?${queryParams}`,
+        method: 'GET'
+      });
+
+      if (response.data.status === 'success') {
+        setHolidays(response.data.data.holidays || []);
+      }
+    } catch (err) {
+      console.error('Error fetching holidays:', err);
+    }
+  };
 
   useEffect(() => {
     if (attendanceData && attendanceData.recentAttendance) {
@@ -236,9 +278,27 @@ const AttendanceCalendar = ({ attendanceData, compact = false }) => {
           reason: record.reason || ''
         };
       });
+
+      // Add holidays to the grouped data
+      holidays.forEach(holiday => {
+        const date = new Date(holiday.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (!grouped[monthKey]) {
+          grouped[monthKey] = {};
+        }
+        const dayKey = String(date.getDate()).padStart(2, '0');
+        // Only add holiday if there's no attendance record for that day
+        if (!grouped[monthKey][dayKey]) {
+          grouped[monthKey][dayKey] = {
+            status: 'Holiday',
+            reason: holiday.reason
+          };
+        }
+      });
+
       setMonthlyData(grouped);
     }
-  }, [attendanceData]);
+  }, [attendanceData, holidays]);
 
   const getDaysInMonth = (date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -413,20 +473,19 @@ const StudentProfileDetail = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [activeTab, setActiveTab] = useState('personal');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   console.log('🎯 StudentProfileDetail component loaded');
   console.log('🎯 Student ID from params:', studentId);
   console.log('🎯 Current URL:', window.location.href);
 
-  useEffect(() => {
-    if (studentId) {
-      fetchStudentProfile();
-    }
-  }, [studentId]);
-
-  const fetchStudentProfile = async () => {
+  const fetchStudentProfile = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      } else {
+        setIsUpdating(true);
+      }
       
       console.log('📋 Fetching student profile for ID:', studentId);
       
@@ -444,6 +503,10 @@ const StudentProfileDetail = () => {
         setStudent(profileResponse.data.data.student);
         setAttendanceData(profileResponse.data.data.attendanceStats);
         console.log('✅ Student profile loaded successfully');
+        
+        if (silent) {
+          console.log('📡 Real-time update: Attendance data refreshed');
+        }
       } else {
         console.log('❌ API returned error:', profileResponse.data);
         throw new Error(profileResponse.data.message || 'Failed to fetch student profile');
@@ -458,22 +521,43 @@ const StudentProfileDetail = () => {
         url: error.config?.url
       });
       
-      let errorMessage = 'Error loading student profile';
-      if (error.response?.status === 404) {
-        errorMessage = 'Student not found';
-      } else if (error.response?.status === 401) {
-        errorMessage = 'Authentication failed. Please log in again.';
-      } else if (error.response?.status === 403) {
-        errorMessage = 'Access denied. You cannot view this student.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      if (!silent) {
+        let errorMessage = 'Error loading student profile';
+        if (error.response?.status === 404) {
+          errorMessage = 'Student not found';
+        } else if (error.response?.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else if (error.response?.status === 403) {
+          errorMessage = 'Access denied. You cannot view this student.';
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+        
+        showToast(errorMessage, 'error');
       }
-      
-      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
+      setIsUpdating(false);
     }
-  };
+  }, [studentId]);
+
+  // Initial fetch and setup polling for real-time updates
+  useEffect(() => {
+    if (studentId) {
+      fetchStudentProfile();
+      
+      // Set up polling for real-time attendance updates every 10 seconds (faster updates)
+      const pollInterval = setInterval(() => {
+        console.log('📡 Polling for attendance updates...');
+        fetchStudentProfile(true); // Silent refresh
+      }, 10000);
+      
+      return () => {
+        console.log('🛑 Stopping attendance polling');
+        clearInterval(pollInterval);
+      };
+    }
+  }, [studentId, fetchStudentProfile]);
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
@@ -762,10 +846,43 @@ const StudentProfileDetail = () => {
 
           {activeTab === 'attendance' && (
             <div className="p-8 tab-content">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <ChartIcon />
-                <span className="ml-3">Attendance Overview</span>
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                  <ChartIcon />
+                  <span className="ml-3">Attendance Overview</span>
+                </h2>
+                <div className="flex items-center space-x-3">
+                  {isUpdating && (
+                    <div className="flex items-center space-x-2 text-sm text-blue-600">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span>Updating...</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => fetchStudentProfile(true)}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1"
+                    title="Refresh attendance data"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Holiday Notification Card */}
+              <div className="mb-8">
+                <ClassHolidayCard 
+                  classData={{ 
+                    batch: student.batchYear, 
+                    section: student.section, 
+                    semester: student.semester || getCurrentSemester(student),
+                    department: student.department 
+                  }} 
+                />
+              </div>
+
               {attendanceData ? (
                 <div className="space-y-8">
                   {/* Attendance Summary Cards */}
@@ -795,7 +912,7 @@ const StudentProfileDetail = () => {
                         <CalendarIcon />
                         <span className="ml-2">Monthly Calendar</span>
                       </h3>
-                      <AttendanceCalendar attendanceData={attendanceData} compact={true} />
+                      <AttendanceCalendar attendanceData={attendanceData} student={student} compact={true} />
                     </div>
 
                     {/* Attendance Percentage & Stats */}

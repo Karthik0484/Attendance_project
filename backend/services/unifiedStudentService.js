@@ -167,8 +167,17 @@ export function createSemesterEntry(studentData, classContext, facultyId, create
   const yearNumber = classContext.year.replace(' Year', '').replace('st', '').replace('nd', '').replace('rd', '').replace('th', '');
   const classAssigned = `${yearNumber}${classContext.section}`;
   
-  // Generate classId for this semester enrollment
+  // Generate classId in same format as bulk upload: batch_year_semester_section
+  // Format: "2024-2028_1st Year_Sem 1_A"
   const classId = `${classContext.batchYear}_${classContext.year}_${classContext.semesterName}_${classContext.section}`;
+  
+  console.log('🏫 createSemesterEntry - Generated classId:', classId);
+  console.log('📋 Context:', {
+    batchYear: classContext.batchYear,
+    year: classContext.year,
+    semesterName: classContext.semesterName,
+    section: classContext.section
+  });
   
   return {
     semesterName: classContext.semesterName,
@@ -263,12 +272,29 @@ export async function createOrUpdateStudent(studentData, classContext, facultyId
     if (existingCheck.action === 'create') {
       // Create new student record
       const studentFormat = createUnifiedStudentFormat(studentData, classContext, facultyId, createdBy);
+      
+      console.log('🔧 Student format created:', {
+        name: studentFormat.name,
+        semestersCount: studentFormat.semesters?.length || 0,
+        firstSemester: studentFormat.semesters?.[0] || null
+      });
+      
       const student = new Student({
         ...studentFormat,
         userId: user._id
       });
       
       await student.save();
+      
+      console.log('💾 Student saved to database:', {
+        studentId: student._id,
+        name: student.name,
+        semestersCount: student.semesters?.length || 0,
+        semesters: student.semesters?.map(s => ({
+          name: s.semesterName,
+          classId: s.classId
+        })) || []
+      });
       
       return {
         success: true,
