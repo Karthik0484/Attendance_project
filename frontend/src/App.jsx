@@ -20,6 +20,7 @@ import EnhancedStudentProfile from './components/EnhancedStudentProfile';
 import StudentProfile from './components/StudentProfile';
 import StudentProfileDetail from './components/StudentProfileDetail';
 import ReportGeneration from './components/ReportGeneration';
+import FixAssignmentsPage from './pages/FixAssignmentsPage';
 import './App.css';
 
 // Wrapper component to add unique keys to routes
@@ -53,6 +54,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['hod']}>
                   <HODDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/fix-assignments" 
+              element={
+                <ProtectedRoute allowedRoles={['hod', 'admin']}>
+                  <FixAssignmentsPage />
                 </ProtectedRoute>
               } 
             />

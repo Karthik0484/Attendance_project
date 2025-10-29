@@ -95,7 +95,9 @@ router.post('/', [
     }
 
     // Create new assignment (this will automatically deactivate any existing one)
-    const assignment = await ClassAssignment.assignAdvisor({
+    console.log(`🔄 Calling assignAdvisor with facultyId=${facultyUser._id}`);
+    
+    const result = await ClassAssignment.assignAdvisor({
       facultyId: facultyUser._id, // Use the User ID, not the Faculty ID
       batch,
       year,
@@ -103,29 +105,105 @@ router.post('/', [
       section,
       departmentId: currentUser._id,
       assignedBy: currentUser._id,
-      notes
+      notes,
+      role: 'Class Advisor'
     });
 
     // Populate the assignment with faculty details
-    await assignment.populate([
+    await result.assignment.populate([
       { path: 'facultyId', select: 'name email position' },
       { path: 'assignedBy', select: 'name email' }
     ]);
 
+    // Create notifications
+    const Notification = (await import('../models/Notification.js')).default;
+    const notifications = [];
+    
+    // Notification for the assigned faculty
+    const newClassDisplay = `${batch} | ${year} | Sem ${semester} | Sec ${section}`;
+    let facultyMessage = `You have been assigned as Class Advisor for ${newClassDisplay}`;
+    
+    if (result.deactivatedAssignments && result.deactivatedAssignments.length > 0) {
+      const oldClasses = result.deactivatedAssignments.map(a => a.classDisplay).join(', ');
+      facultyMessage += `. Your previous assignment(s) (${oldClasses}) have been archived.`;
+    }
+
+    notifications.push({
+      facultyId: faculty._id,
+      message: facultyMessage,
+      type: 'assignment',
+      classRef: `${batch}_${year}_${semester}_${section}`,
+      metadata: {
+        newClass: { batch, year, semester, section },
+        oldClasses: result.deactivatedAssignments || []
+      },
+      priority: 'high',
+      actionUrl: `/faculty/class/${batch}_${year}_${semester}_${section}`
+    });
+
+    // Notification for HOD
+    const hodFaculty = await Faculty.findOne({ userId: currentUser._id });
+    if (hodFaculty) {
+      let hodMessage = `Successfully assigned ${facultyUser.name} as Class Advisor for ${newClassDisplay}`;
+      if (result.replacedAdvisor) {
+        hodMessage += `. Replaced ${result.replacedAdvisor.name}.`;
+      }
+      if (result.deactivatedAssignments && result.deactivatedAssignments.length > 0) {
+        hodMessage += ` ${result.deactivatedAssignments.length} previous assignment(s) archived.`;
+      }
+
+      notifications.push({
+        facultyId: hodFaculty._id,
+        message: hodMessage,
+        type: 'system',
+        classRef: `${batch}_${year}_${semester}_${section}`,
+        metadata: { action: 'faculty_assignment' },
+        priority: 'medium'
+      });
+    }
+
+    // Notification for replaced advisor
+    if (result.replacedAdvisor) {
+      const replacedFaculty = await Faculty.findOne({ userId: result.replacedAdvisor.userId });
+      if (replacedFaculty) {
+        notifications.push({
+          facultyId: replacedFaculty._id,
+          message: `Your Class Advisor role for ${newClassDisplay} has been reassigned to ${facultyUser.name}. All your data remains safe and accessible.`,
+          type: 'reassignment',
+          classRef: `${batch}_${year}_${semester}_${section}`,
+          metadata: { replacedBy: facultyUser.name },
+          priority: 'high'
+        });
+      }
+    }
+
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+      console.log(`✅ Created ${notifications.length} notifications`);
+    }
+
+    // Prepare response message
+    let message = 'Class advisor assigned successfully';
+    if (result.deactivatedAssignments && result.deactivatedAssignments.length > 0) {
+      message += `. ${result.deactivatedAssignments.length} previous assignment(s) automatically archived`;
+    }
+    if (result.replacedAdvisor) {
+      message += `. Replaced ${result.replacedAdvisor.name}`;
+    }
+
     res.status(201).json({
       status: 'success',
-      message: replacedAdvisor 
-        ? `Class advisor assigned successfully. Replaced ${replacedAdvisor.name} for ${year} | Semester ${semester} | Section ${section}`
-        : `Class advisor assigned successfully for ${year} | Semester ${semester} | Section ${section}`,
+      message,
       data: {
-        assignment,
-        replacedAdvisor,
+        assignment: result.assignment,
+        deactivatedAssignments: result.deactivatedAssignments || [],
+        replacedAdvisor: result.replacedAdvisor,
         classInfo: {
           batch,
           year,
           semester,
           section,
-          classDisplay: assignment.classDisplay
+          classDisplay: result.assignment.classDisplay
         }
       }
     });
@@ -138,12 +216,13 @@ router.post('/', [
   }
 });
 
-// @desc    Get all active class assignments for a faculty
+// @desc    Get all class assignments for a faculty (active and inactive)
 // @route   GET /api/class-assignment/faculty/:facultyId
 // @access  Faculty and above
 router.get('/faculty/:facultyId', authenticate, async (req, res) => {
   try {
     const { facultyId } = req.params;
+    const { includeInactive = 'false' } = req.query;
     const currentUser = req.user;
 
     // Check if user can access this faculty's assignments
@@ -154,12 +233,27 @@ router.get('/faculty/:facultyId', authenticate, async (req, res) => {
       });
     }
 
-    const assignments = await ClassAssignment.getActiveAssignments(facultyId);
+    // Build query
+    const query = { facultyId };
+    if (includeInactive === 'false') {
+      query.status = 'Active';
+    }
+
+    const assignments = await ClassAssignment.find(query)
+      .populate('assignedBy', 'name email')
+      .populate('deactivatedBy', 'name email')
+      .sort({ assignedDate: -1 });
+
+    const activeAssignments = assignments.filter(a => a.status === 'Active');
+    const inactiveAssignments = assignments.filter(a => a.status === 'Inactive');
 
     res.status(200).json({
       status: 'success',
       data: {
-        assignments,
+        activeAssignments,
+        inactiveAssignments,
+        totalActive: activeAssignments.length,
+        totalInactive: inactiveAssignments.length,
         total: assignments.length,
         faculty: {
           id: facultyId,
@@ -233,19 +327,20 @@ router.get('/current/:batch/:year/:semester/:section', authenticate, hodAndAbove
 router.get('/department', authenticate, hodAndAbove, async (req, res) => {
   try {
     const currentUser = req.user;
-    const { active = 'true' } = req.query;
+    const { status = 'Active' } = req.query;
 
     const filter = {
       departmentId: currentUser._id
     };
 
-    if (active === 'true') {
-      filter.active = true;
+    if (status !== 'all') {
+      filter.status = status;
     }
 
     const assignments = await ClassAssignment.find(filter)
       .populate('facultyId', 'name email position')
       .populate('assignedBy', 'name email')
+      .populate('deactivatedBy', 'name email')
       .sort({ assignedDate: -1 });
 
     // Group assignments by class
@@ -377,7 +472,10 @@ router.get('/available-classes', authenticate, hodAndAbove, async (req, res) => 
     // Get current assignments to show which are taken
     const currentAssignments = await ClassAssignment.find({
       departmentId: currentUser._id,
-      active: true
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
     }).populate('facultyId', 'name email');
 
     const assignedClasses = new Set();
@@ -474,6 +572,97 @@ router.get('/:id', authenticate, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Server error while fetching class assignment'
+    });
+  }
+});
+
+// @desc    Fix multiple active assignments (deactivate all but most recent)
+// @route   POST /api/class-assignment/fix-multiple-active
+// @access  HOD and above
+router.post('/fix-multiple-active', authenticate, hodAndAbove, async (req, res) => {
+  try {
+    console.log('🔧 Fixing multiple active assignments...');
+
+    // Find all assignments (active in either old or new schema)
+    const allAssignments = await ClassAssignment.find({
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true },
+        { active: true }
+      ]
+    }).sort({ assignedDate: -1 });
+
+    // Group by facultyId and role
+    const facultyGroups = {};
+    allAssignments.forEach(assignment => {
+      const key = `${assignment.facultyId}_${assignment.role || 'Class Advisor'}`;
+      if (!facultyGroups[key]) {
+        facultyGroups[key] = [];
+      }
+      facultyGroups[key].push(assignment);
+    });
+
+    let fixedCount = 0;
+    let deactivatedCount = 0;
+    const fixedFaculty = [];
+
+    // For each faculty with multiple assignments, keep only the most recent
+    for (const [key, assignments] of Object.entries(facultyGroups)) {
+      if (assignments.length > 1) {
+        // Sort by date (newest first)
+        assignments.sort((a, b) => b.assignedDate - a.assignedDate);
+        
+        const [newest, ...older] = assignments;
+        
+        // Ensure newest is properly set as Active
+        newest.status = 'Active';
+        newest.active = true;
+        await newest.save();
+        
+        // Deactivate older assignments
+        for (const old of older) {
+          old.status = 'Inactive';
+          old.active = false;
+          old.deactivatedDate = new Date();
+          
+          if (!old.statusHistory) {
+            old.statusHistory = [];
+          }
+          old.statusHistory.push({
+            status: 'Inactive',
+            updatedAt: new Date(),
+            updatedBy: req.user._id,
+            reason: 'Auto-deactivated: Multiple active assignments detected and fixed'
+          });
+          
+          await old.save();
+          deactivatedCount++;
+        }
+        
+        fixedFaculty.push({
+          facultyId: newest.facultyId,
+          kept: `${newest.batch} | ${newest.year} | Sem ${newest.semester} | Sec ${newest.section}`,
+          deactivated: older.length
+        });
+        fixedCount++;
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: `Fixed ${fixedCount} faculty with multiple active assignments`,
+      data: {
+        fixedCount,
+        deactivatedCount,
+        fixedFaculty
+      }
+    });
+  } catch (error) {
+    console.error('Error fixing multiple active assignments:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while fixing assignments',
+      error: error.message
     });
   }
 });

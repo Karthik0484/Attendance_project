@@ -16,6 +16,7 @@ import classAssignmentRoutes from './routes/classAssignment.js';
 import semesterRoutes from './routes/semester.js';
 import attendanceReasonRoutes from './routes/attendanceReason.js';
 import notificationRoutes from './routes/notification.js';
+import absenteeReportRoutes from './routes/absenteeReport.js';
 import config from './config/config.js';
 import Student from './models/Student.js';
 import Attendance from './models/Attendance.js';
@@ -90,6 +91,7 @@ app.use('/api/bulk-upload', bulkUploadRoutes);
 app.use('/api/class-assignment', classAssignmentRoutes);
 app.use('/api/semesters', semesterRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', absenteeReportRoutes);
 console.log('✅ All routes registered successfully');
 
 // Health check route

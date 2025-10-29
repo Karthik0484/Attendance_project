@@ -49,9 +49,17 @@ const classAssignmentSchema = new mongoose.Schema({
     type: Date, 
     default: Date.now 
   },
-  active: { 
-    type: Boolean, 
-    default: true 
+  status: {
+    type: String,
+    enum: ['Active', 'Inactive', 'Completed'],
+    default: 'Active',
+    index: true
+  },
+  role: {
+    type: String,
+    enum: ['Class Advisor', 'Subject Faculty'],
+    default: 'Class Advisor',
+    index: true
   },
   // Additional metadata
   notes: {
@@ -65,6 +73,30 @@ const classAssignmentSchema = new mongoose.Schema({
   deactivatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // Status change history for audit
+  statusHistory: [{
+    status: {
+      type: String,
+      enum: ['Active', 'Inactive', 'Completed']
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    reason: {
+      type: String,
+      maxlength: 300
+    }
+  }],
+  // Legacy field for backward compatibility
+  active: { 
+    type: Boolean, 
+    default: true 
   }
 }, {
   timestamps: true
@@ -76,23 +108,26 @@ classAssignmentSchema.index({
   year: 1,
   semester: 1,
   section: 1,
-  departmentId: 1
+  departmentId: 1,
+  role: 1
 }, {
   unique: true,
-  partialFilterExpression: { active: true },
-  name: 'unique_active_assignment_per_section'
+  partialFilterExpression: { status: 'Active' },
+  name: 'unique_active_assignment_per_section_role'
 });
 
 // Index for efficient faculty queries
 classAssignmentSchema.index({
   facultyId: 1,
-  active: 1
+  status: 1,
+  role: 1
 });
 
 // Index for department queries
 classAssignmentSchema.index({
   departmentId: 1,
-  active: 1
+  status: 1,
+  role: 1
 });
 
 // Virtual for formatted class display
@@ -106,22 +141,35 @@ classAssignmentSchema.virtual('classKey').get(function() {
 });
 
 // Method to deactivate assignment
-classAssignmentSchema.methods.deactivate = async function(deactivatedBy) {
-  this.active = false;
+classAssignmentSchema.methods.deactivate = async function(deactivatedBy, reason = 'Deactivated by administrator') {
+  this.status = 'Inactive';
+  this.active = false; // Legacy field
   this.deactivatedDate = new Date();
   this.deactivatedBy = deactivatedBy;
   
-  // Also remove from Faculty model
+  // Add to status history
+  this.statusHistory.push({
+    status: 'Inactive',
+    updatedAt: new Date(),
+    updatedBy: deactivatedBy,
+    reason
+  });
+  
+  // Also update Faculty model
   const Faculty = (await import('./Faculty.js')).default;
   const faculty = await Faculty.findOne({ userId: this.facultyId });
   
   if (faculty) {
-    faculty.assignedClasses = faculty.assignedClasses.filter(assignment => 
-      !(assignment.batch === this.batch && 
-        assignment.year === this.year && 
-        assignment.semester === this.semester && 
-        assignment.section === this.section)
-    );
+    faculty.assignedClasses = faculty.assignedClasses.map(assignment => {
+      if (assignment.batch === this.batch && 
+          assignment.year === this.year && 
+          assignment.semester === this.semester && 
+          assignment.section === this.section &&
+          assignment.active) {
+        return { ...assignment.toObject(), active: false };
+      }
+      return assignment;
+    });
     await faculty.save();
   }
   
@@ -159,90 +207,206 @@ classAssignmentSchema.methods.completeRemoval = async function() {
 };
 
 // Static method to get active assignments for a faculty
-classAssignmentSchema.statics.getActiveAssignments = function(facultyId) {
-  return this.find({ facultyId, active: true })
+classAssignmentSchema.statics.getActiveAssignments = function(facultyId, role = null) {
+  const query = {
+    facultyId,
+    $or: [
+      { status: 'Active' },
+      { status: { $exists: false }, active: true }
+    ]
+  };
+  if (role) query.role = role;
+  
+  return this.find(query)
     .populate('assignedBy', 'name email')
     .sort({ assignedDate: -1 });
 };
 
 // Static method to get current advisor for a class
-classAssignmentSchema.statics.getCurrentAdvisor = function(batch, year, semester, section, departmentId) {
+classAssignmentSchema.statics.getCurrentAdvisor = function(batch, year, semester, section, departmentId, role = 'Class Advisor') {
   return this.findOne({
     batch,
     year,
     semester,
     section,
     departmentId,
-    active: true
+    role,
+    status: 'Active'
   }).populate('facultyId', 'name email position');
 };
 
-// Static method to assign new advisor (handles replacement)
+// Static method to assign new advisor (handles replacement and auto-deactivation)
 classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
-  const { facultyId, batch, year, semester, section, departmentId, assignedBy, notes } = assignmentData;
+  const { facultyId, batch, year, semester, section, departmentId, assignedBy, notes, role = 'Class Advisor' } = assignmentData;
   
-  // Check if there's an existing active assignment
-  const existingAssignment = await this.findOne({
-    batch,
-    year,
-    semester,
-    section,
-    departmentId,
-    active: true
-  });
-
-  // If exists, deactivate it
-  if (existingAssignment) {
-    await existingAssignment.deactivate(assignedBy);
-  }
-
-  // Create new assignment
-  const newAssignment = new this({
-    facultyId,
-    batch,
-    year,
-    semester,
-    section,
-    departmentId,
-    assignedBy,
-    notes
-  });
-
-  const savedAssignment = await newAssignment.save();
-
-  // Also update the Faculty model to keep both models in sync
-  const Faculty = (await import('./Faculty.js')).default;
-  const faculty = await Faculty.findOne({ userId: facultyId });
+  const session = await this.db.startSession();
+  session.startTransaction();
   
-  if (faculty) {
-    console.log('🔄 Updating Faculty model for assignment:', { batch, year, semester, section });
-    
-    // Remove any existing assignment for this class from Faculty model
-    faculty.assignedClasses = faculty.assignedClasses.filter(assignment => 
-      !(assignment.batch === batch && 
-        assignment.year === year && 
-        assignment.semester === semester && 
-        assignment.section === section)
-    );
-    
-    // Add new assignment to Faculty model
-    faculty.assignedClasses.push({
+  try {
+    // Step 1: Find all active assignments for this faculty with the same role (handle both old and new schema)
+    const facultyActiveAssignments = await this.find({
+      facultyId,
+      departmentId,
+      role,
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
+    }).session(session);
+
+    console.log(`📋 Found ${facultyActiveAssignments.length} active ${role} assignment(s) for faculty`);
+
+    // Step 2: Deactivate all existing active assignments for this faculty/role
+    const deactivatedAssignments = [];
+    for (const assignment of facultyActiveAssignments) {
+      assignment.status = 'Inactive';
+      assignment.active = false; // Legacy field
+      assignment.deactivatedDate = new Date();
+      assignment.deactivatedBy = assignedBy;
+      assignment.statusHistory.push({
+        status: 'Inactive',
+        updatedAt: new Date(),
+        updatedBy: assignedBy,
+        reason: 'New assignment created - auto-deactivated'
+      });
+      await assignment.save({ session });
+      
+      deactivatedAssignments.push({
+        batch: assignment.batch,
+        year: assignment.year,
+        semester: assignment.semester,
+        section: assignment.section,
+        classDisplay: `${assignment.batch} | ${assignment.year} | Sem ${assignment.semester} | Sec ${assignment.section}`
+      });
+      
+      console.log(`✅ Deactivated: ${assignment.batch} ${assignment.year} Sem ${assignment.semester} Sec ${assignment.section}`);
+    }
+
+    // Step 3: Check if this specific class already has an active advisor (handle both old and new schema)
+    const existingClassAdvisor = await this.findOne({
       batch,
       year,
       semester,
       section,
-      assignedBy,
-      assignedDate: new Date(),
-      active: true
-    });
-    
-    await faculty.save();
-    console.log('✅ Faculty model updated successfully. Total assignments:', faculty.assignedClasses.length);
-  } else {
-    console.log('⚠️ Faculty not found for userId:', facultyId);
-  }
+      departmentId,
+      role,
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
+    }).session(session);
 
-  return savedAssignment;
+    let replacedAdvisor = null;
+    if (existingClassAdvisor) {
+      // Get the advisor details before deactivation
+      const User = (await import('./User.js')).default;
+      const advisorUser = await User.findById(existingClassAdvisor.facultyId);
+      if (advisorUser) {
+        replacedAdvisor = {
+          userId: advisorUser._id,
+          name: advisorUser.name,
+          email: advisorUser.email
+        };
+      }
+
+      // Deactivate existing class advisor
+      existingClassAdvisor.status = 'Inactive';
+      existingClassAdvisor.active = false;
+      existingClassAdvisor.deactivatedDate = new Date();
+      existingClassAdvisor.deactivatedBy = assignedBy;
+      existingClassAdvisor.statusHistory.push({
+        status: 'Inactive',
+        updatedAt: new Date(),
+        updatedBy: assignedBy,
+        reason: 'Replaced by new advisor'
+      });
+      await existingClassAdvisor.save({ session });
+      
+      console.log(`✅ Replaced existing advisor for class`);
+    }
+
+    // Step 4: Create new assignment
+    const newAssignment = new this({
+      facultyId,
+      batch,
+      year,
+      semester,
+      section,
+      departmentId,
+      assignedBy,
+      notes,
+      role,
+      status: 'Active',
+      active: true, // Legacy field
+      statusHistory: [{
+        status: 'Active',
+        updatedAt: new Date(),
+        updatedBy: assignedBy,
+        reason: 'Initial assignment'
+      }]
+    });
+
+    await newAssignment.save({ session });
+    console.log(`✅ Created new ${role} assignment: ${batch} ${year} Sem ${semester} Sec ${section}`);
+
+    // Step 5: Update Faculty model
+    const Faculty = (await import('./Faculty.js')).default;
+    const faculty = await Faculty.findOne({ userId: facultyId }).session(session);
+    
+    if (faculty) {
+      // Update all existing assignments to inactive
+      faculty.assignedClasses = faculty.assignedClasses.map(assignment => {
+        if (assignment.active && facultyActiveAssignments.some(a => 
+          a.batch === assignment.batch &&
+          a.year === assignment.year &&
+          a.semester === assignment.semester &&
+          a.section === assignment.section
+        )) {
+          return { ...assignment.toObject(), active: false };
+        }
+        return assignment;
+      });
+      
+      // Remove the new class if it exists
+      faculty.assignedClasses = faculty.assignedClasses.filter(assignment => 
+        !(assignment.batch === batch && 
+          assignment.year === year && 
+          assignment.semester === semester && 
+          assignment.section === section)
+      );
+      
+      // Add new assignment
+      faculty.assignedClasses.push({
+        batch,
+        year,
+        semester,
+        section,
+        assignedBy,
+        assignedDate: new Date(),
+        active: true
+      });
+      
+      await faculty.save({ session });
+      console.log('✅ Faculty model updated successfully');
+    }
+
+    // Commit transaction
+    await session.commitTransaction();
+    console.log('✅ Transaction committed successfully');
+
+    return {
+      assignment: newAssignment,
+      deactivatedAssignments,
+      replacedAdvisor
+    };
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('❌ Transaction failed, rolling back:', error);
+    throw error;
+  } finally {
+    session.endSession();
+  }
 };
 
 // Ensure virtual fields are included in JSON output

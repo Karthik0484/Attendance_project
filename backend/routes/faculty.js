@@ -508,25 +508,36 @@ router.get('/:facultyId/classes', facultyAndAbove, async (req, res) => {
 
     console.log('🔍 Fetching assigned classes for faculty:', facultyId);
 
-    // Get assigned classes from ClassAssignment model
+    // Get ALL assigned classes from ClassAssignment model (both active and inactive)
     const classAssignments = await ClassAssignment.find({
-      facultyId: facultyId,
-      active: true
-    }).populate('facultyId', 'name email');
+      facultyId: facultyId
+    })
+    .populate('facultyId', 'name email')
+    .sort({ assignedDate: -1 }); // Most recent first
 
     console.log('📋 Found class assignments:', classAssignments.length, classAssignments);
 
-    // Format assigned classes
-    const assignedClasses = classAssignments.map(assignment => ({
-      classId: assignment._id,
-      batch: assignment.batch,
-      year: assignment.year,
-      semester: assignment.semester,
-      section: assignment.section,
-      department: assignment.departmentId,
-      assignedDate: assignment.assignedDate,
-      notes: assignment.notes
-    }));
+    // Format assigned classes with status information
+    const assignedClasses = classAssignments.map(assignment => {
+      // Determine if class is active (handle both old and new schema)
+      const isActive = assignment.status === 'Active' || 
+                      (!assignment.status && assignment.active === true);
+      
+      return {
+        classId: assignment._id,
+        batch: assignment.batch,
+        year: assignment.year,
+        semester: assignment.semester,
+        section: assignment.section,
+        department: assignment.departmentId,
+        assignedDate: assignment.assignedDate,
+        notes: assignment.notes,
+        status: isActive ? 'Active' : 'Inactive',
+        isActive: isActive,
+        deactivatedDate: assignment.deactivatedDate,
+        role: assignment.role || 'Class Advisor'
+      };
+    });
 
     console.log('✅ Formatted assigned classes:', assignedClasses);
 
@@ -574,10 +585,13 @@ router.get('/:facultyId/dashboard', facultyAndAbove, async (req, res) => {
       });
     }
 
-    // Get assigned classes from ClassAssignment model
+    // Get assigned classes from ClassAssignment model (handle both old and new schema)
     const classAssignments = await ClassAssignment.find({
       facultyId: facultyId,
-      active: true
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
     }).populate('facultyId', 'name email');
 
     // Format assigned classes
@@ -768,10 +782,13 @@ router.get('/:id/assignments', hodAndAbove, async (req, res) => {
       });
     }
 
-    // Get class assignments for this faculty
+    // Get class assignments for this faculty (handle both old and new schema)
     const assignments = await ClassAssignment.find({
       facultyId: faculty.userId,
-      active: true
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
     }).populate('facultyId', 'name email');
 
     res.status(200).json({
@@ -816,7 +833,10 @@ router.get('/me/summary', authenticate, facultyAndAbove, async (req, res) => {
     console.log('🔍 Searching for classes with facultyId (userId):', faculty.userId);
     const assignedClasses = await ClassAssignment.find({
       facultyId: faculty.userId,  // Use userId, not faculty._id
-      active: true  // Use 'active', not 'status'
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
     }).select('batch year semester section classId');
     
     console.log(`📚 Found ${assignedClasses.length} assigned classes`);

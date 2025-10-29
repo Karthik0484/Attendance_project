@@ -7,6 +7,7 @@ import BulkUploadModal from '../components/BulkUploadModal';
 import HolidayDeclarationModal from '../components/HolidayDeclarationModal';
 import HolidayList from '../components/HolidayList';
 import AbsenceReasonReviewCard from '../components/AbsenceReasonReviewCard';
+import AbsenteeReportTab from '../components/AbsenteeReportTab';
 
 const ClassAttendanceManagement = () => {
   const { classId } = useParams();
@@ -64,6 +65,7 @@ const ClassAttendanceManagement = () => {
         
         const newClassData = {
           classId: properClassId, // Use proper classId format for the new attendance management API
+          _id: assignment._id, // Add the assignment ID for reports
           batch: assignment.batch,
           year: assignment.year,
           semester: semesterStr, // Use converted semester format
@@ -120,7 +122,7 @@ const ClassAttendanceManagement = () => {
     { id: 'history', label: 'Attendance History', icon: '📊' },
     { id: 'holidays', label: 'Holiday Management', icon: '🎉' },
     { id: 'reviews', label: 'Absence Reviews', icon: '📋' },
-    { id: 'report', label: 'Generate Report', icon: '📈' },
+    { id: 'absentee', label: 'Absentee Report', icon: '📑' },
     { id: 'students', label: 'Student Management', icon: '👥' }
   ];
 
@@ -199,26 +201,33 @@ const ClassAttendanceManagement = () => {
             </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white border-b">
+      <div className="bg-gradient-to-b from-gray-50 to-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
+          <nav className="flex space-x-2 py-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`relative px-5 py-3 font-medium text-sm transition-all duration-300 rounded-lg group ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'text-blue-700 bg-white shadow-md transform scale-105'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50 hover:shadow-sm'
                 }`}
               >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
+                <span className="flex items-center gap-2.5">
+                  <span className={`text-xl transition-transform duration-300 ${
+                    activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'
+                  }`}>{tab.icon}</span>
+                  <span className="font-semibold">{tab.label}</span>
+                </span>
+                {activeTab === tab.id && (
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-full"></div>
+                )}
               </button>
             ))}
           </nav>
-          </div>
         </div>
+      </div>
 
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -240,13 +249,6 @@ const ClassAttendanceManagement = () => {
         )}
         {activeTab === 'history' && (
           <AttendanceHistoryTab 
-            classData={classData} 
-            students={students} 
-            onToast={showToast}
-          />
-        )}
-        {activeTab === 'report' && (
-          <AttendanceReportTab 
             classData={classData} 
             students={students} 
             onToast={showToast}
@@ -282,6 +284,11 @@ const ClassAttendanceManagement = () => {
               classId={classData?.classId}
             />
           </div>
+        )}
+        {activeTab === 'absentee' && (
+          <AbsenteeReportTab 
+            classData={classData}
+          />
         )}
         {activeTab === 'students' && (
           <StudentManagementTab 
@@ -2590,128 +2597,6 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Attendance Report Tab Component
-const AttendanceReportTab = ({ classData, students, onToast }) => {
-  const [reportData, setReportData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
-  });
-
-  const generateReport = async () => {
-    try {
-      setLoading(true);
-      const response = await apiFetch({
-        url: `/api/attendance/report?batch=${classData.batch}&year=${classData.year}&semester=${classData.semester}&section=${classData.section}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`,
-        method: 'GET'
-      });
-
-      if (response.data.success) {
-        setReportData(response.data.data);
-      } else {
-        onToast(response.data.message || 'Failed to generate report', 'error');
-      }
-    } catch (error) {
-      console.error('Error generating report:', error);
-      onToast('Error generating report', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const downloadReport = () => {
-    if (!reportData) return;
-    
-    const csvContent = [
-      ['Date', 'Present', 'Absent', 'Percentage'],
-      ...reportData.records.map(record => [
-        new Date(record.date).toLocaleDateString(),
-        record.presentCount,
-        record.totalStudents - record.presentCount,
-        ((record.presentCount / record.totalStudents) * 100).toFixed(1) + '%'
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance-report-${classData.batch}-${dateRange.startDate}-to-${dateRange.endDate}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Generate Attendance Report</h2>
-        <p className="text-sm text-gray-500">Create and download attendance summary reports</p>
-      </div>
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end mb-6">
-          <button
-            onClick={generateReport}
-            disabled={loading}
-            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Generating...' : 'Generate Report'}
-          </button>
-        </div>
-
-        {reportData && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-blue-900">Total Days</h3>
-                <p className="text-2xl font-bold text-blue-600">{reportData.totalDays}</p>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-green-900">Average Attendance</h3>
-                <p className="text-2xl font-bold text-green-600">{reportData.averageAttendance.toFixed(1)}%</p>
-              </div>
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-yellow-900">Total Students</h3>
-                <p className="text-2xl font-bold text-yellow-600">{reportData.totalStudents}</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={downloadReport}
-                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700"
-              >
-                Download CSV Report
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

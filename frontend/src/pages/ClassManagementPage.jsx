@@ -131,60 +131,97 @@ const ClassManagementPage = () => {
             <div className="p-6">
               {assignedClasses.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {assignedClasses.map((cls, index) => (
-                    <div key={cls.classId || index} className="bg-gray-50 rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            {cls.batch} | {cls.year} | Semester {cls.semester} | Section {cls.section}
-                          </h3>
-                          
-                          <div className="space-y-2 text-sm text-gray-600">
-                            <div className="flex items-center">
-                              <span className="font-medium mr-2">Batch:</span>
-                              <span className="text-blue-600 font-semibold">{cls.batch}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="font-medium mr-2">Year:</span>
-                              <span>{cls.year}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="font-medium mr-2">Semester:</span>
-                              <span>{cls.semester}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="font-medium mr-2">Section:</span>
-                              <span>{cls.section}</span>
-                            </div>
-                            {cls.assignedDate && (
+                  {assignedClasses.map((cls, index) => {
+                    const isActive = cls.status === 'Active' || cls.isActive;
+                    
+                    return (
+                      <div 
+                        key={cls.classId || index} 
+                        className={`rounded-lg border p-6 transition-all ${
+                          isActive 
+                            ? 'bg-gray-50 border-gray-200 hover:shadow-md' 
+                            : 'bg-gray-100 border-gray-300 opacity-75'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className={`text-lg font-semibold mb-2 ${
+                              isActive ? 'text-gray-900' : 'text-gray-600'
+                            }`}>
+                              {cls.batch} | {cls.year} | Semester {cls.semester} | Section {cls.section}
+                            </h3>
+                            
+                            <div className="space-y-2 text-sm text-gray-600">
                               <div className="flex items-center">
-                                <span className="font-medium mr-2">Assigned:</span>
-                                <span className="text-green-600">
-                                  {new Date(cls.assignedDate).toLocaleDateString()}
-                                </span>
+                                <span className="font-medium mr-2">Batch:</span>
+                                <span className={`font-semibold ${
+                                  isActive ? 'text-blue-600' : 'text-gray-500'
+                                }`}>{cls.batch}</span>
                               </div>
-                            )}
+                              <div className="flex items-center">
+                                <span className="font-medium mr-2">Year:</span>
+                                <span>{cls.year}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="font-medium mr-2">Semester:</span>
+                                <span>{cls.semester}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="font-medium mr-2">Section:</span>
+                                <span>{cls.section}</span>
+                              </div>
+                              {cls.assignedDate && (
+                                <div className="flex items-center">
+                                  <span className="font-medium mr-2">Assigned:</span>
+                                  <span className={isActive ? 'text-green-600' : 'text-gray-500'}>
+                                    {new Date(cls.assignedDate).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              )}
+                              {!isActive && cls.deactivatedDate && (
+                                <div className="flex items-center">
+                                  <span className="font-medium mr-2">Deactivated:</span>
+                                  <span className="text-red-600">
+                                    {new Date(cls.deactivatedDate).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
+
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-200 text-gray-600'
+                          }`}>
+                            {isActive ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
 
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-500">
-                          Class Advisor
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-gray-500">
+                            {cls.role || 'Class Advisor'}
+                          </div>
+                          {isActive ? (
+                            <button
+                              onClick={() => handleManageClass(cls.classId)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                            >
+                              Manage Class
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleManageClass(cls.classId)}
+                              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
+                              title="View archived class data (read-only)"
+                            >
+                              View Archive
+                            </button>
+                          )}
                         </div>
-                        <button
-                          onClick={() => handleManageClass(cls.classId)}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
-                        >
-                          Manage Class
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12">
