@@ -15,6 +15,7 @@ import studentBulkUploadRoutes from './routes/studentBulkUpload.js';
 import classAssignmentRoutes from './routes/classAssignment.js';
 import semesterRoutes from './routes/semester.js';
 import attendanceReasonRoutes from './routes/attendanceReason.js';
+import notificationRoutes from './routes/notification.js';
 import config from './config/config.js';
 import Student from './models/Student.js';
 import Attendance from './models/Attendance.js';
@@ -58,6 +59,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serve static files (profile photos)
+app.use('/uploads', express.static('uploads'));
+
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -85,6 +89,7 @@ app.use('/api/holidays', holidayRoutes);
 app.use('/api/bulk-upload', bulkUploadRoutes);
 app.use('/api/class-assignment', classAssignmentRoutes);
 app.use('/api/semesters', semesterRoutes);
+app.use('/api/notifications', notificationRoutes);
 console.log('✅ All routes registered successfully');
 
 // Health check route

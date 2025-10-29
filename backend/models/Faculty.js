@@ -143,6 +143,10 @@ const facultySchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  profilePhoto: {
+    type: String,
+    default: null
+  },
   dateOfBirth: {
     type: Date
   },

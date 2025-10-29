@@ -2,6 +2,9 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import Holiday from '../models/Holiday.js';
 import ClassAttendance from '../models/ClassAttendance.js';
+import Notification from '../models/Notification.js';
+import Faculty from '../models/Faculty.js';
+import ClassAssignment from '../models/ClassAssignment.js';
 import { authenticate, facultyAndAbove } from '../middleware/auth.js';
 import { normalizeDateToString, isValidDateString } from '../utils/dateUtils.js';
 
@@ -176,6 +179,66 @@ router.post('/declare', facultyAndAbove, [
       department: currentUser.department,
       declaredBy: currentUser.name
     });
+
+    // Create notifications for faculty (asynchronously, don't wait)
+    (async () => {
+      try {
+        const facultyList = [];
+        
+        if (scope === 'class') {
+          // Find faculty assigned to this specific class
+          const classId = `${batchYear}_${year}_${semester}_${section}`;
+          const assignments = await ClassAssignment.find({
+            classId,
+            department: currentUser.department,
+            status: 'active'
+          });
+          
+          for (const assignment of assignments) {
+            const faculty = await Faculty.findById(assignment.facultyId);
+            if (faculty && faculty.userId.toString() !== currentUser._id.toString()) {
+              facultyList.push(faculty._id);
+            }
+          }
+        } else {
+          // Global holiday - notify all faculty in department
+          const allFaculty = await Faculty.find({
+            department: currentUser.department,
+            status: 'active'
+          });
+          
+          facultyList.push(...allFaculty.filter(f => f.userId.toString() !== currentUser._id.toString()).map(f => f._id));
+        }
+
+        // Create notifications
+        const notificationMessage = scope === 'class'
+          ? `Holiday declared for ${batchYear} | ${year} | ${semester} | Section ${section} on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`
+          : `Global holiday declared on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`;
+
+        const notifications = facultyList.map(facultyId => ({
+          facultyId,
+          message: notificationMessage,
+          type: 'holiday',
+          classRef: scope === 'class' ? `${batchYear}_${year}_${semester}_${section}` : null,
+          metadata: {
+            holidayId: holiday.holidayId,
+            date: holidayDateString,
+            reason,
+            scope,
+            declaredBy: currentUser.name
+          },
+          priority: 'medium',
+          actionUrl: scope === 'class' ? `/faculty/class/${batchYear}_${year}_${semester}_${section}` : null
+        }));
+
+        if (notifications.length > 0) {
+          await Notification.insertMany(notifications);
+          console.log(`✅ Created ${notifications.length} notifications for holiday`);
+        }
+      } catch (error) {
+        console.error('❌ Error creating holiday notifications:', error);
+      }
+    })();
 
     res.status(201).json({
       status: 'success',

@@ -8,6 +8,14 @@ import { authenticate, hodAndAbove, facultyAndAbove } from '../middleware/auth.j
 import { createStudentWithStandardizedData } from '../services/studentCreationService.js';
 import { getStudentsForSemester } from '../services/multiSemesterStudentService.js';
 import { createOrUpdateStudent, getStudentsForFaculty } from '../services/unifiedStudentService.js';
+import upload from '../middleware/upload.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const router = express.Router();
 
@@ -778,6 +786,300 @@ router.get('/:id/assignments', hodAndAbove, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Server error while fetching faculty assignments'
+    });
+  }
+});
+
+// @desc    Get faculty profile summary for navbar
+// @route   GET /api/faculty/me/summary
+// @access  Faculty
+router.get('/me/summary', authenticate, facultyAndAbove, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    console.log('📊 Faculty summary request from userId:', userId);
+    
+    // Find faculty by userId
+    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    
+    console.log('👤 Faculty found:', faculty ? `${faculty.name} (${faculty._id})` : 'NOT FOUND');
+    
+    if (!faculty) {
+      console.log('❌ Faculty profile not found for userId:', userId);
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty profile not found'
+      });
+    }
+
+    // Get assigned classes
+    // NOTE: ClassAssignment stores facultyId as userId (from User collection), not faculty._id
+    console.log('🔍 Searching for classes with facultyId (userId):', faculty.userId);
+    const assignedClasses = await ClassAssignment.find({
+      facultyId: faculty.userId,  // Use userId, not faculty._id
+      active: true  // Use 'active', not 'status'
+    }).select('batch year semester section classId');
+    
+    console.log(`📚 Found ${assignedClasses.length} assigned classes`);
+
+    // Count total students across all classes
+    let totalStudents = 0;
+    const activeSemesters = new Set();
+
+    for (const cls of assignedClasses) {
+      // Build the actual classId string that matches Student schema
+      const classIdStr = `${cls.batch}_${cls.year}_${cls.semester}_${cls.section}`;
+      
+      console.log(`📊 Counting students for class: ${classIdStr}`);
+      
+      // Try multiple query strategies to find students
+      const queries = [
+        // New schema: students with semesters array
+        {
+          department: faculty.department,
+          'semesters.classId': classIdStr,
+          'semesters.status': 'active',
+          status: 'active'
+        },
+        // Legacy schema: direct fields
+        {
+          department: faculty.department,
+          batchYear: cls.batch,
+          section: cls.section,
+          'semesters.semesterName': cls.semester,
+          'semesters.year': cls.year,
+          status: 'active'
+        },
+        // Even simpler: just batch, year, semester, section
+        {
+          department: faculty.department,
+          batchYear: cls.batch,
+          section: cls.section,
+          status: 'active'
+        }
+      ];
+      
+      let count = 0;
+      for (const query of queries) {
+        const tempCount = await Student.countDocuments(query);
+        if (tempCount > count) {
+          count = tempCount;
+          console.log(`  ✓ Found ${count} students with query:`, JSON.stringify(query, null, 2));
+        }
+      }
+      
+      totalStudents += count;
+      activeSemesters.add(`${cls.batch} | ${cls.year} | Sem ${cls.semester}`);
+    }
+    
+    console.log(`📈 Total students across all classes: ${totalStudents}`);
+
+    const responseData = {
+      success: true,
+      data: {
+        profile: {
+          id: faculty._id,
+          name: faculty.name,
+          email: faculty.email,
+          department: faculty.department,
+          position: faculty.position || 'Faculty',
+          role: faculty.is_class_advisor ? 'Class Advisor' : 'Faculty',
+          joinedOn: faculty.createdAt,
+          phone: faculty.phone,
+          address: faculty.address,
+          profilePhoto: faculty.profilePhoto,
+          facultyId: faculty.facultyId || faculty._id.toString().slice(-6)
+        },
+        summary: {
+          totalClasses: assignedClasses.length,
+          totalStudents,
+          activeSemesters: Array.from(activeSemesters),
+          institution: 'Engineering College' // Can be made dynamic
+        }
+      }
+    };
+
+    console.log('✅ Sending faculty summary:', JSON.stringify(responseData, null, 2));
+
+    res.json(responseData);
+
+  } catch (error) {
+    console.error('❌ Error fetching faculty summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch faculty summary'
+    });
+  }
+});
+
+// @desc    Upload faculty profile photo
+// @route   POST /api/faculty/me/photo
+// @access  Faculty
+router.post('/me/photo', authenticate, facultyAndAbove, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No photo file provided'
+      });
+    }
+
+    const userId = req.user._id;
+    
+    // Find faculty by userId
+    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    
+    if (!faculty) {
+      // Delete uploaded file if faculty not found
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty profile not found'
+      });
+    }
+
+    // Delete old photo if exists
+    if (faculty.profilePhoto) {
+      const oldPhotoPath = path.join(__dirname, '../uploads/profiles', path.basename(faculty.profilePhoto));
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+
+    // Save new photo path
+    faculty.profilePhoto = `/uploads/profiles/${req.file.filename}`;
+    await faculty.save();
+
+    console.log(`✅ Uploaded profile photo for faculty ${faculty.name}`);
+
+    res.json({
+      success: true,
+      message: 'Profile photo uploaded successfully',
+      data: {
+        profilePhoto: faculty.profilePhoto
+      }
+    });
+
+  } catch (error) {
+    // Clean up uploaded file on error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error('❌ Error uploading profile photo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload profile photo'
+    });
+  }
+});
+
+// @desc    Delete faculty profile photo
+// @route   DELETE /api/faculty/me/photo
+// @access  Faculty
+router.delete('/me/photo', authenticate, facultyAndAbove, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find faculty by userId
+    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty profile not found'
+      });
+    }
+
+    // Delete photo file if exists
+    if (faculty.profilePhoto) {
+      const photoPath = path.join(__dirname, '../uploads/profiles', path.basename(faculty.profilePhoto));
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+        console.log(`🗑️ Deleted photo file: ${photoPath}`);
+      }
+    }
+
+    // Remove photo reference from database
+    faculty.profilePhoto = null;
+    await faculty.save();
+
+    console.log(`✅ Removed profile photo for faculty ${faculty.name}`);
+
+    res.json({
+      success: true,
+      message: 'Profile photo deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting profile photo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete profile photo'
+    });
+  }
+});
+
+// @desc    Update faculty profile
+// @route   PUT /api/faculty/me/update
+// @access  Faculty
+router.put('/me/update', authenticate, facultyAndAbove, [
+  body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
+  body('phone').optional().matches(/^[0-9]{10}$/).withMessage('Phone must be 10 digits'),
+  body('address').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const userId = req.user._id;
+    const { name, phone, address } = req.body;
+    
+    // Find faculty by userId
+    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Faculty profile not found'
+      });
+    }
+
+    // Update allowed fields only
+    if (name) faculty.name = name;
+    if (phone) faculty.phone = phone;
+    if (address) faculty.address = address;
+
+    await faculty.save();
+
+    // Also update user name if changed
+    if (name) {
+      await User.findByIdAndUpdate(userId, { name });
+    }
+
+    console.log(`✅ Updated profile for faculty ${faculty.name}`);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        name: faculty.name,
+        email: faculty.email,
+        phone: faculty.phone,
+        address: faculty.address,
+        profilePhoto: faculty.profilePhoto
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating faculty profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile'
     });
   }
 });

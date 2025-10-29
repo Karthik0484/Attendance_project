@@ -1,6 +1,9 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import Attendance from '../models/Attendance.js';
+import Notification from '../models/Notification.js';
+import Faculty from '../models/Faculty.js';
+import ClassAssignment from '../models/ClassAssignment.js';
 import { authenticate, facultyAndAbove } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -93,6 +96,55 @@ router.post('/reason', [
     await attendanceDoc.save();
 
     console.log('✅ Absence reason submitted successfully');
+
+    // Create notification for faculty (asynchronously, don't wait)
+    (async () => {
+      try {
+        // Find faculty assigned to this class
+        const assignments = await ClassAssignment.find({
+          classId,
+          status: 'active'
+        });
+        
+        const facultyList = [];
+        for (const assignment of assignments) {
+          const faculty = await Faculty.findById(assignment.facultyId);
+          if (faculty) {
+            facultyList.push(faculty._id);
+          }
+        }
+
+        // Get student info
+        const Student = (await import('../models/Student.js')).default;
+        const studentData = await Student.findById(actualStudentId).select('name rollNumber');
+
+        // Create notifications
+        const notificationMessage = `Student ${studentData?.name} (${studentData?.rollNumber}) submitted absence reason for ${new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+        const notifications = facultyList.map(facultyId => ({
+          facultyId,
+          message: notificationMessage,
+          type: 'absence_reason',
+          classRef: classId,
+          metadata: {
+            studentId: actualStudentId.toString(),
+            studentName: studentData?.name,
+            rollNumber: studentData?.rollNumber,
+            date,
+            reason
+          },
+          priority: 'high',
+          actionUrl: `/faculty/class/${classId}`
+        }));
+
+        if (notifications.length > 0) {
+          await Notification.insertMany(notifications);
+          console.log(`✅ Created ${notifications.length} notifications for absence reason`);
+        }
+      } catch (error) {
+        console.error('❌ Error creating absence reason notifications:', error);
+      }
+    })();
 
     res.json({
       success: true,

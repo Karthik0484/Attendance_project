@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
 import { apiFetch } from '../utils/apiFetch';
+import EnhancedFacultyNavbar from '../components/EnhancedFacultyNavbar';
 
 const ClassManagementPage = () => {
   const { user, logout } = useAuth();
@@ -104,47 +105,11 @@ const ClassManagementPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Fixed Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Faculty Details - Left Side */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-semibold text-lg">
-                    {facultyProfile?.name?.charAt(0) || user?.name?.charAt(0) || 'F'}
-                  </span>
-                </div>
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900">
-                    {facultyProfile?.name || user?.name || 'Faculty'}
-                  </h4>
-                  <p className="text-sm text-gray-600">
-                    {facultyProfile?.department || user?.department}
-                  </p>
-                  {facultyProfile?.email && (
-                    <small className="text-xs text-gray-500">
-                      {facultyProfile.email}
-                    </small>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Logout Button - Right Side */}
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+      {/* Enhanced Navbar */}
+      <EnhancedFacultyNavbar />
 
       {/* Main Content */}
-      <main className="pt-20">
+      <main className="pt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
