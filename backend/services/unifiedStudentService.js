@@ -167,17 +167,8 @@ export function createSemesterEntry(studentData, classContext, facultyId, create
   const yearNumber = classContext.year.replace(' Year', '').replace('st', '').replace('nd', '').replace('rd', '').replace('th', '');
   const classAssigned = `${yearNumber}${classContext.section}`;
   
-  // Generate classId in same format as bulk upload: batch_year_semester_section
-  // Format: "2024-2028_1st Year_Sem 1_A"
+  // Generate classId for this semester enrollment
   const classId = `${classContext.batchYear}_${classContext.year}_${classContext.semesterName}_${classContext.section}`;
-  
-  console.log('🏫 createSemesterEntry - Generated classId:', classId);
-  console.log('📋 Context:', {
-    batchYear: classContext.batchYear,
-    year: classContext.year,
-    semesterName: classContext.semesterName,
-    section: classContext.section
-  });
   
   return {
     semesterName: classContext.semesterName,
@@ -272,29 +263,12 @@ export async function createOrUpdateStudent(studentData, classContext, facultyId
     if (existingCheck.action === 'create') {
       // Create new student record
       const studentFormat = createUnifiedStudentFormat(studentData, classContext, facultyId, createdBy);
-      
-      console.log('🔧 Student format created:', {
-        name: studentFormat.name,
-        semestersCount: studentFormat.semesters?.length || 0,
-        firstSemester: studentFormat.semesters?.[0] || null
-      });
-      
       const student = new Student({
         ...studentFormat,
         userId: user._id
       });
       
       await student.save();
-      
-      console.log('💾 Student saved to database:', {
-        studentId: student._id,
-        name: student.name,
-        semestersCount: student.semesters?.length || 0,
-        semesters: student.semesters?.map(s => ({
-          name: s.semesterName,
-          classId: s.classId
-        })) || []
-      });
       
       return {
         success: true,
@@ -397,43 +371,87 @@ export async function bulkCreateOrUpdateStudents(studentsData, classContext, fac
  */
 export async function getStudentsForFaculty(facultyId, classContext) {
   try {
-    // Generate classId for the current semester
-    const classId = `${classContext.batchYear}_${classContext.year}_${classContext.semesterName}_${classContext.section}`;
-    
-    console.log('🔍 Searching for students with classId:', classId);
-    console.log('🔍 Faculty ID:', facultyId);
-    console.log('🔍 Class context:', classContext);
+    console.log('🔍 [SERVICE] getStudentsForFaculty called');
+    console.log('   Faculty ID:', facultyId);
+    console.log('   Class context:', JSON.stringify(classContext, null, 2));
 
-    // Query students that have the specific semester enrollment
-    const query = {
+    // Build base query - only include section if it's provided
+    let baseQuery = {
       department: classContext.department,
       batchYear: classContext.batchYear,
-      section: classContext.section,
       'semesters.semesterName': classContext.semesterName,
       'semesters.year': classContext.year,
-      'semesters.facultyId': new mongoose.Types.ObjectId(facultyId),
-      'semesters.classId': classId,
       'semesters.status': 'active',
       status: 'active'
     };
 
-    console.log('🔍 Query:', JSON.stringify(query, null, 2));
+    // Only add section filter if section is provided and not null
+    if (classContext.section) {
+      baseQuery.section = classContext.section;
+      console.log('🔍 [SERVICE] Section filter added:', classContext.section);
+    } else {
+      console.log('🔍 [SERVICE] No section specified - searching ALL sections');
+    }
 
-    const students = await Student.find(query)
-      .select('userId rollNumber name email mobile parentContact address dateOfBirth emergencyContact semesters createdBy createdAt')
+    // TIER 1: Try with facultyId first (for assigned faculty)
+    const tier1Query = {
+      ...baseQuery,
+      'semesters.facultyId': new mongoose.Types.ObjectId(facultyId)
+    };
+
+    console.log('🔍 [SERVICE] TIER 1 Query (with facultyId):', JSON.stringify(tier1Query, null, 2));
+
+    let students = await Student.find(tier1Query)
+      .select('userId rollNumber name email mobile parentContact address dateOfBirth emergencyContact semesters createdBy createdAt batchYear section department')
       .populate('userId', 'name email mobile')
       .sort({ rollNumber: 1 });
 
-    console.log(`📊 Found ${students.length} students for classId: ${classId}`);
+    console.log(`📊 [SERVICE] TIER 1: Found ${students.length} students with facultyId match`);
+
+    // TIER 2: If no students found, try without facultyId (for HODs/admins or different class advisors viewing)
+    if (students.length === 0) {
+      console.log('🔍 [SERVICE] TIER 2: Trying broader query WITHOUT facultyId...');
+      
+      console.log('🔍 [SERVICE] TIER 2 Query:', JSON.stringify(baseQuery, null, 2));
+
+      students = await Student.find(baseQuery)
+        .select('userId rollNumber name email mobile parentContact address dateOfBirth emergencyContact semesters createdBy createdAt batchYear section department')
+        .populate('userId', 'name email mobile')
+        .sort({ rollNumber: 1 });
+
+      console.log(`📊 [SERVICE] TIER 2: Found ${students.length} students without facultyId restriction`);
+    }
+
+    console.log(`📊 [SERVICE] FINAL: ${students.length} students found`);
+
+    if (students.length > 0) {
+      console.log(`📋 [SERVICE] Sample student:`, {
+        name: students[0].name,
+        rollNumber: students[0].rollNumber,
+        section: students[0].section,
+        batchYear: students[0].batchYear,
+        semestersCount: students[0].semesters?.length || 0
+      });
+    }
 
     // Transform to include semester-specific data
     const formattedStudents = students.map(student => {
-      const currentSemester = student.semesters.find(sem => 
+      // Try to find semester - first with facultyId match, then without
+      let currentSemester = student.semesters.find(sem => 
         sem.semesterName === classContext.semesterName &&
         sem.year === classContext.year &&
         sem.facultyId.toString() === facultyId.toString() &&
-        sem.classId === classId
+        (classContext.section ? sem.section === classContext.section : true)
       );
+
+      // If not found with facultyId, try without (for HODs/admins)
+      if (!currentSemester) {
+        currentSemester = student.semesters.find(sem => 
+          sem.semesterName === classContext.semesterName &&
+          sem.year === classContext.year &&
+          (classContext.section ? sem.section === classContext.section : true)
+        );
+      }
 
       return {
         id: student._id,
@@ -456,6 +474,8 @@ export async function getStudentsForFaculty(facultyId, classContext) {
       };
     });
 
+    console.log(`✅ [SERVICE] Returning ${formattedStudents.length} formatted students`);
+
     return {
       success: true,
       students: formattedStudents,
@@ -463,7 +483,7 @@ export async function getStudentsForFaculty(facultyId, classContext) {
     };
 
   } catch (error) {
-    console.error('Error getting students for faculty:', error);
+    console.error('❌ [SERVICE] Error getting students for faculty:', error);
     return {
       success: false,
       error: error,

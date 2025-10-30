@@ -73,18 +73,25 @@ router.get('/', authenticate, facultyAndAbove, async (req, res) => {
       });
     }
 
+    console.log('🔍 [STUDENT QUERY] Raw params:', { batch, year, semester, section, userId: req.user._id, role: req.user.role });
+
     const normalizedYear = normalizeYear(year);
     const normalizedSemester = normalizeSemester(semester);
+
+    console.log('🔍 [STUDENT QUERY] Normalized:', { normalizedYear, normalizedSemester });
 
     // Use unified service to fetch students
     const classContext = {
       batchYear: batch,
       year: normalizedYear,
       semesterName: normalizedSemester,
-      section: section || 'A',
+      section: section || null, // Don't default to 'A' - query all sections if not provided
       department: req.user.department
     };
 
+    console.log('🔍 [STUDENT QUERY] Class context:', JSON.stringify(classContext, null, 2));
+
+    // req.user._id is the User ID (from authentication), which is stored in semesters.facultyId
     const result = await getStudentsForFaculty(req.user._id, classContext);
 
     if (!result.success) {

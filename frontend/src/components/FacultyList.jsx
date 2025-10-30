@@ -167,18 +167,27 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       
       if (data.status === 'success') {
+        // Remove the deleted faculty from the local state immediately
+        setFaculties(prev => prev.filter(f => f._id !== facultyToDelete.id));
+        setFilteredFaculties(prev => prev.filter(f => f._id !== facultyToDelete.id));
+        
         setToast({ 
           show: true, 
           message: '✅ Faculty deleted successfully', 
           type: 'success' 
         });
-        fetchFaculties(currentPage, searchTerm);
+        
+        // Refresh the full list from server to ensure sync
+        setTimeout(() => {
+          fetchFaculties(currentPage, searchTerm);
+        }, 500);
       } else {
         setToast({ 
           show: true, 
@@ -190,7 +199,7 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
       console.error('Error deleting faculty:', error);
       setToast({ 
         show: true, 
-        message: '❌ Error deleting faculty. Please try again.', 
+        message: `❌ ${error.message || 'Error deleting faculty. Please try again.'}`, 
         type: 'error' 
       });
     } finally {
@@ -216,8 +225,9 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
   if (loading && faculties.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <div className="flex items-center justify-center h-32">
+        <div className="flex flex-col items-center justify-center h-32 space-y-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="text-gray-600 text-sm">Fetching faculty records...</p>
         </div>
       </div>
     );
@@ -292,19 +302,33 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
           ))
         ) : (
           <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <div className="text-gray-500 mb-4">
-              {faculties.length === 0 ? 'No faculty members found' : 'No faculty members match your filters'}
-        </div>
-            {faculties.length === 0 && (
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-gray-900 mb-2">
+                  {faculties.length === 0 ? '🧑‍🏫 No faculty members found in the system' : 'No faculty members match your filters'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {faculties.length === 0 
+                    ? 'Create a new faculty member to get started' 
+                    : 'Try adjusting your search or filter criteria'}
+                </p>
+              </div>
+              {faculties.length === 0 && (
                 <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  onClick={() => fetchFaculties(1, '')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
-                Refresh
+                  Refresh List
                 </button>
-            )}
-                      </div>
-                    )}
+              )}
+            </div>
+          </div>
+        )}
         </div>
 
         {/* Pagination */}

@@ -236,13 +236,13 @@ classAssignmentSchema.statics.getCurrentAdvisor = function(batch, year, semester
 };
 
 // Static method to assign new advisor (handles replacement and auto-deactivation)
+// NOTE: Refactored to work without transactions for standalone MongoDB instances
 classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
   const { facultyId, batch, year, semester, section, departmentId, assignedBy, notes, role = 'Class Advisor' } = assignmentData;
   
-  const session = await this.db.startSession();
-  session.startTransaction();
-  
   try {
+    console.log('🔵 Starting advisor assignment process (no transactions)');
+    
     // Step 1: Find all active assignments for this faculty with the same role (handle both old and new schema)
     const facultyActiveAssignments = await this.find({
       facultyId,
@@ -252,7 +252,7 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
         { status: 'Active' },
         { status: { $exists: false }, active: true }
       ]
-    }).session(session);
+    });
 
     console.log(`📋 Found ${facultyActiveAssignments.length} active ${role} assignment(s) for faculty`);
 
@@ -269,7 +269,7 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
         updatedBy: assignedBy,
         reason: 'New assignment created - auto-deactivated'
       });
-      await assignment.save({ session });
+      await assignment.save();
       
       deactivatedAssignments.push({
         batch: assignment.batch,
@@ -294,7 +294,7 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
         { status: 'Active' },
         { status: { $exists: false }, active: true }
       ]
-    }).session(session);
+    });
 
     let replacedAdvisor = null;
     if (existingClassAdvisor) {
@@ -320,7 +320,7 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
         updatedBy: assignedBy,
         reason: 'Replaced by new advisor'
       });
-      await existingClassAdvisor.save({ session });
+      await existingClassAdvisor.save();
       
       console.log(`✅ Replaced existing advisor for class`);
     }
@@ -346,12 +346,12 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
       }]
     });
 
-    await newAssignment.save({ session });
+    await newAssignment.save();
     console.log(`✅ Created new ${role} assignment: ${batch} ${year} Sem ${semester} Sec ${section}`);
 
     // Step 5: Update Faculty model
     const Faculty = (await import('./Faculty.js')).default;
-    const faculty = await Faculty.findOne({ userId: facultyId }).session(session);
+    const faculty = await Faculty.findOne({ userId: facultyId });
     
     if (faculty) {
       // Update all existing assignments to inactive
@@ -386,13 +386,11 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
         active: true
       });
       
-      await faculty.save({ session });
+      await faculty.save();
       console.log('✅ Faculty model updated successfully');
     }
 
-    // Commit transaction
-    await session.commitTransaction();
-    console.log('✅ Transaction committed successfully');
+    console.log('✅ Advisor assignment completed successfully (no transactions)');
 
     return {
       assignment: newAssignment,
@@ -401,11 +399,8 @@ classAssignmentSchema.statics.assignAdvisor = async function(assignmentData) {
     };
 
   } catch (error) {
-    await session.abortTransaction();
-    console.error('❌ Transaction failed, rolling back:', error);
+    console.error('❌ Advisor assignment failed:', error);
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 

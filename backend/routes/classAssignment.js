@@ -131,7 +131,7 @@ router.post('/', [
     notifications.push({
       facultyId: faculty._id,
       message: facultyMessage,
-      type: 'assignment',
+      type: 'system',
       classRef: `${batch}_${year}_${semester}_${section}`,
       metadata: {
         newClass: { batch, year, semester, section },
@@ -169,7 +169,7 @@ router.post('/', [
         notifications.push({
           facultyId: replacedFaculty._id,
           message: `Your Class Advisor role for ${newClassDisplay} has been reassigned to ${facultyUser.name}. All your data remains safe and accessible.`,
-          type: 'reassignment',
+          type: 'system',
           classRef: `${batch}_${year}_${semester}_${section}`,
           metadata: { replacedBy: facultyUser.name },
           priority: 'high'

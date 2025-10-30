@@ -16,7 +16,20 @@ const StudentManagementPage = () => {
   
   // Get batch info from navigation state
   const batchInfo = location.state || {};
-  const { batch, year, semester, department, classTitle } = batchInfo;
+  const { batch, year, semester, section, department, classTitle } = batchInfo;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('📍 [StudentManagementPage] Navigation state received:', {
+      batch,
+      year,
+      semester,
+      section,
+      department,
+      classTitle,
+      fullState: batchInfo
+    });
+  }, [batch, year, semester, section, department]);
   
   const [students, setStudents] = useState([]);
   const [facultyProfile, setFacultyProfile] = useState(null);
@@ -49,6 +62,7 @@ const StudentManagementPage = () => {
 
   const fetchStudents = useCallback(async () => {
     if (!batch || !year || !semester || !department) {
+      console.log('⚠️ [StudentManagementPage] Missing required parameters:', { batch, year, semester, department });
       setStudents([]);
       setLoading(false);
       return;
@@ -56,8 +70,21 @@ const StudentManagementPage = () => {
 
     setLoading(true);
     try {
+      // Extract section from batchInfo if available
+      const sectionParam = section || batchInfo.section || '';
+      
+      // Build API URL with section if available
+      let apiUrl = `/api/students?batch=${encodeURIComponent(batch)}&year=${encodeURIComponent(year)}&semester=${encodeURIComponent(semester)}`;
+      if (sectionParam) {
+        apiUrl += `&section=${encodeURIComponent(sectionParam)}`;
+      }
+      
+      console.log('📡 [StudentManagementPage] Fetching students...');
+      console.log('   API URL:', apiUrl);
+      console.log('   Parameters:', { batch, year, semester, section: sectionParam, department });
+      
       const response = await apiFetch({
-        url: `/api/students?batch=${batch}&year=${year}&semester=${semester}`,
+        url: apiUrl,
         method: 'GET'
       });
       

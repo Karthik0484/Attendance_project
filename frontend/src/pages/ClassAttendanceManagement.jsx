@@ -70,7 +70,10 @@ const ClassAttendanceManagement = () => {
           year: assignment.year,
           semester: semesterStr, // Use converted semester format
           section: assignment.section,
-          department: user.department // Use user's department instead of departmentId
+          department: user.department, // Use user's department instead of departmentId
+          isArchived: assignment.status !== 'Active' || !assignment.active, // Check if class is archived
+          status: assignment.status,
+          active: assignment.active
         };
         
         console.log('🔍 Final classData semester:', {
@@ -83,25 +86,77 @@ const ClassAttendanceManagement = () => {
         
         console.log('✅ Class data set:', newClassData);
         
-        // Fetch students for this class using the faculty students endpoint
+        // Fetch students using the new classId-based API
+        const studentsUrl = `/api/classes/${classId}/students`;
+        
+        console.log('📡 [NEW API] Fetching students with classId:', classId);
+        console.log('📡 [NEW API] URL:', studentsUrl);
+        
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(assignment.batch)}&year=${encodeURIComponent(assignment.year)}&semester=${encodeURIComponent(semesterStr)}&department=${encodeURIComponent(user.department)}`,
+          url: studentsUrl,
           method: 'GET'
         });
 
-        console.log('👥 Students response:', studentsResponse.data);
+        console.log('👥 [NEW API] Students response:', studentsResponse.data);
 
         if (studentsResponse.data.success) {
-          setStudents(studentsResponse.data.data.students || []);
-          console.log('✅ Students loaded:', studentsResponse.data.data.students?.length || 0);
+          const fetchedStudents = studentsResponse.data.data.students || [];
+          setStudents(fetchedStudents);
+          console.log('✅ [NEW API] Students loaded:', fetchedStudents.length);
+          console.log('📊 [NEW API] Sample student data:', fetchedStudents[0]);
+          console.log('📋 [NEW API] Student fields:', fetchedStudents[0] ? Object.keys(fetchedStudents[0]) : 'No students');
+          console.log('🔍 [NEW API] Roll number check:', {
+            hasRollNumber: fetchedStudents[0]?.rollNumber,
+            hasRegNo: fetchedStudents[0]?.regNo,
+            studentName: fetchedStudents[0]?.name
+          });
+          
+          // Update classData with archived status from API response
+          if (studentsResponse.data.data.classInfo) {
+            setClassData(prev => ({
+              ...prev,
+              isArchived: studentsResponse.data.data.classInfo.isArchived,
+              status: studentsResponse.data.data.classInfo.status,
+              active: studentsResponse.data.data.classInfo.active
+            }));
+          }
+          
+          if (fetchedStudents.length === 0) {
+            console.log('ℹ️ [NEW API] No students found in this class');
+            setToast({ 
+              show: true, 
+              message: 'No students enrolled in this class yet. Add students to get started.', 
+              type: 'info' 
+            });
+          }
+        } else {
+          console.error('❌ [NEW API] Failed to fetch students:', studentsResponse.data.message);
+          setToast({ 
+            show: true, 
+            message: studentsResponse.data.message || 'Failed to load students', 
+            type: 'error' 
+          });
         }
       } else {
         console.error('❌ Failed to fetch class assignment:', classResponse.data.message);
         setToast({ show: true, message: classResponse.data.message || 'Failed to load class data', type: 'error' });
       }
     } catch (error) {
-      console.error('Error fetching class data:', error);
-      setToast({ show: true, message: 'Error loading class data', type: 'error' });
+      console.error('❌ Error fetching class data:', error);
+      
+      // Provide specific error messages based on error type
+      let errorMessage = 'Error loading class data';
+      if (error.response?.status === 403) {
+        errorMessage = 'You are not authorized to access this class';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Class not found or has been removed';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setToast({ show: true, message: errorMessage, type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -188,11 +243,18 @@ const ClassAttendanceManagement = () => {
                 </svg>
               </button>
             <div>
-                <h1 className="text-xl font-semibold text-gray-900">
+                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-3">
                 Class Management - {classData.batch} | {classData.year} | Semester {classData.semester} | Section {classData.section}
+                {classData.isArchived && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                    📦 Archived Class
+                  </span>
+                )}
               </h1>
                 <p className="text-sm text-gray-500">
-                  Manage attendance, students, and generate reports for this class
+                  {classData.isArchived 
+                    ? 'Viewing archived class - Read-only access for historical data' 
+                    : 'Manage attendance, students, and generate reports for this class'}
                 </p>
               </div>
             </div>
@@ -532,22 +594,40 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
 
   // Function to refresh students list
   const refreshStudentsList = async () => {
+    if (!classData?.classId) {
+      console.error('❌ [NEW API] No classId available');
+      return;
+    }
+    
     try {
-      console.log('🔄 Refreshing students list...');
+      console.log('🔄 [NEW API] Refreshing students list using classId:', classData.classId);
       const studentsResponse = await apiFetch({
-        url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${encodeURIComponent(classData.semester)}&department=${encodeURIComponent(classData.department)}`,
+        url: `/api/classes/${classData.classId}/students`,
         method: 'GET'
       });
       
       if (studentsResponse.data.success) {
         const refreshedStudents = studentsResponse.data.data.students || [];
-        console.log('✅ Students refreshed:', refreshedStudents.length);
+        console.log('✅ [NEW API] Students refreshed:', refreshedStudents.length);
         onStudentsUpdate(refreshedStudents);
+        onToast(`Student list refreshed: ${refreshedStudents.length} student(s)`, 'success');
       } else {
-        console.error('❌ Failed to refresh students:', studentsResponse.data.message);
+        console.error('❌ [NEW API] Failed to refresh students:', studentsResponse.data.message);
+        onToast(studentsResponse.data.message || 'Failed to refresh student list', 'error');
       }
     } catch (error) {
-      console.error('❌ Error refreshing students list:', error);
+      console.error('❌ [NEW API] Error refreshing students list:', error);
+      
+      let errorMessage = 'Failed to refresh student list';
+      if (error.response?.status === 403) {
+        errorMessage = 'Access denied: Not authorized to view these students';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Class not found';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      onToast(errorMessage, 'error');
     }
   };
 
@@ -811,7 +891,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                   {(students || []).map((student) => (
                   <tr key={student._id || student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {student.rollNumber}
+                      {student.rollNumber || student.regNo || student.rollNo || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <button
@@ -842,7 +922,8 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {(() => {
-                          const status = getStudentAttendanceStatus(student.rollNumber);
+                          const rollNum = student.rollNumber || student.regNo || student.rollNo;
+                          const status = getStudentAttendanceStatus(rollNum);
                           const statusColors = {
                             'Present': 'bg-green-100 text-green-800',
                             'Absent': 'bg-red-100 text-red-800',
@@ -880,6 +961,39 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
     }
   }, [classData?.classId]);
 
+  // Update student records when students prop changes or attendance data changes
+  useEffect(() => {
+    if (students && students.length > 0) {
+      console.log('📋 [EDIT] Students available:', students.length);
+      console.log('📋 [EDIT] Attendance data:', attendanceData);
+      
+      // If we have attendance data, merge with students
+      if (attendanceData && attendanceData.records && attendanceData.records.length > 0) {
+        console.log('📋 [EDIT] Merging attendance with students');
+        const records = attendanceData.records.map(record => ({
+          studentId: record.studentId._id || record.studentId,
+          rollNumber: record.rollNumber,
+          name: record.name,
+          email: record.email || 'N/A',
+          status: record.status
+        }));
+        setStudentRecords(records);
+      } else {
+        // No attendance record yet, use students from props with default "present" status
+        console.log('📋 [EDIT] No attendance records, using students with default status');
+        const records = students.map(student => ({
+          studentId: student._id,
+          rollNumber: student.rollNumber || student.regNo || student.rollNo || 'N/A',
+          name: student.name,
+          email: student.email || 'N/A',
+          status: 'present' // Default status
+        }));
+        setStudentRecords(records);
+        console.log('📋 [EDIT] Created', records.length, 'student records');
+      }
+    }
+  }, [students, attendanceData]);
+
   const fetchTodayAttendance = async () => {
     try {
       setLoading(true);
@@ -899,22 +1013,12 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
         const attendance = response.data.data.attendance;
         setAttendanceData(attendance);
         setNotes(attendance.notes || '');
-        
-        // Convert attendance records to student records with status
-        const records = attendance.records.map(record => ({
-          studentId: record.studentId._id || record.studentId,
-          rollNumber: record.rollNumber,
-          name: record.name,
-          email: record.email || 'N/A',
-          status: record.status
-        }));
-        
-        setStudentRecords(records);
         console.log('📋 Today\'s attendance loaded:', attendance);
+        // Note: studentRecords will be set by the useEffect that watches students + attendanceData
       } else {
         console.log('📋 No attendance found:', response.data.message);
         setAttendanceData(null);
-        setStudentRecords([]);
+        // Note: studentRecords will be set by the useEffect that watches students + attendanceData
       }
     } catch (error) {
       console.error('❌ Error fetching today\'s attendance:', error);
@@ -923,7 +1027,7 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
         // No attendance record found - this is expected if not marked yet
         console.log('📋 No attendance record found for today - this is expected if attendance hasn\'t been marked yet');
         setAttendanceData(null);
-        setStudentRecords([]);
+        // Note: studentRecords will be set by the useEffect that watches students + attendanceData
       } else {
         let errorMessage = 'Error loading today\'s attendance';
         if (error.response?.data?.message) {
@@ -1056,7 +1160,11 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
     );
   }
 
-  if (!attendanceData) {
+  // Don't show "No Attendance" message if we have students to display
+  // The students will show with default status and can be marked/edited
+  const showNoAttendanceMessage = !attendanceData && (!studentRecords || studentRecords.length === 0);
+  
+  if (showNoAttendanceMessage) {
     return (
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
@@ -1066,17 +1174,16 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
         <div className="p-6">
           <div className="text-center py-8">
             <div className="text-gray-400 text-6xl mb-4">📊</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Attendance Record Found</h3>
-            <p className="text-gray-500 mb-4">No attendance has been marked for today yet.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Students or Attendance Found</h3>
+            <p className="text-gray-500 mb-4">No students or attendance records are available for this class.</p>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">To edit attendance:</h4>
-              <ol className="text-sm text-blue-800 text-left space-y-1">
-                <li>1. Go to the "Mark Attendance" tab</li>
-                <li>2. Mark attendance for today's class</li>
-                <li>3. Return to this tab to edit the attendance</li>
-              </ol>
+              <h4 className="text-sm font-medium text-blue-900 mb-2">Possible reasons:</h4>
+              <ul className="text-sm text-blue-800 text-left space-y-1">
+                <li>• No students have been enrolled in this class</li>
+                <li>• Go to "Student Management" tab to add students</li>
+                <li>• Then mark attendance in "Mark Attendance" tab</li>
+              </ul>
             </div>
-            <p className="text-sm text-gray-400">You can only edit attendance after it has been initially marked.</p>
           </div>
         </div>
       </div>
@@ -1093,25 +1200,37 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
         </div>
         <div className="p-6">
           <form onSubmit={handleUpdateAttendance} className="space-y-6">
-            {/* Read-only summary */}
+            {/* Summary - show actual data if attendance exists, otherwise show current counts */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Date</label>
                 <p className="mt-1 text-sm text-gray-900">
-                  {new Date(attendanceData.date).toLocaleDateString()}
+                  {attendanceData 
+                    ? new Date(attendanceData.date).toLocaleDateString()
+                    : new Date().toLocaleDateString()}
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Total Students</label>
-                <p className="mt-1 text-sm text-gray-900">{attendanceData.totalStudents}</p>
+                <p className="mt-1 text-sm text-gray-900">
+                  {attendanceData ? attendanceData.totalStudents : studentRecords.length}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Present</label>
-                <p className="mt-1 text-sm text-gray-900">{attendanceData.totalPresent}</p>
+                <p className="mt-1 text-sm text-gray-900">
+                  {attendanceData 
+                    ? attendanceData.totalPresent 
+                    : studentRecords.filter(s => s.status === 'present').length}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Absent</label>
-                <p className="mt-1 text-sm text-gray-900">{attendanceData.totalAbsent}</p>
+                <p className="mt-1 text-sm text-gray-900">
+                  {attendanceData 
+                    ? attendanceData.totalAbsent 
+                    : studentRecords.filter(s => s.status === 'absent').length}
+                </p>
               </div>
             </div>
 
@@ -2646,9 +2765,9 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
       if (response.data.success) {
         onToast('Student added successfully!', 'success');
         setShowAddStudent(false);
-        // Refresh students list
+        // Refresh students list using new classId-based API
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
+          url: `/api/classes/${classId}/students`,
           method: 'GET'
         });
         if (studentsResponse.data.success) {
@@ -2698,9 +2817,9 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
       if (response.data.success) {
         onToast('Student updated successfully!', 'success');
         setEditingStudent(null);
-        // Refresh students list
+        // Refresh students list using new classId-based API
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
+          url: `/api/classes/${classId}/students`,
           method: 'GET'
         });
         if (studentsResponse.data.success) {
@@ -2745,9 +2864,9 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
           : 'Student removed from semester successfully!';
         onToast(message, 'success');
         
-        // Refresh students list
+        // Refresh students list using new classId-based API
         const studentsResponse = await apiFetch({
-          url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
+          url: `/api/classes/${classId}/students`,
           method: 'GET'
         });
         if (studentsResponse.data.success) {
@@ -2773,10 +2892,10 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
   };
 
   const handleStudentsAdded = async () => {
-    // Refresh the students list after bulk upload
+    // Refresh the students list after bulk upload using new classId-based API
     try {
       const studentsResponse = await apiFetch({
-        url: `/api/faculty/students?batch=${encodeURIComponent(classData.batch)}&year=${encodeURIComponent(classData.year)}&semester=${classData.semester}&department=${encodeURIComponent(user.department)}`,
+        url: `/api/classes/${classId}/students`,
         method: 'GET'
       });
       if (studentsResponse.data.success) {

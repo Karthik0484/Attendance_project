@@ -1104,4 +1104,109 @@ router.put('/me/update', authenticate, facultyAndAbove, [
   }
 });
 
+// @desc    Delete faculty
+// @route   DELETE /api/faculty/:id
+// @access  HOD and above
+router.delete('/:id', hodAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+    
+    console.log('🗑️ Delete faculty request:', {
+      facultyId: id,
+      requestedBy: currentUser._id,
+      role: currentUser.role,
+      department: currentUser.department
+    });
+
+    // Find the faculty record by _id
+    const faculty = await Faculty.findById(id);
+    
+    if (!faculty) {
+      console.log('❌ Faculty not found:', id);
+      return res.status(404).json({
+        status: 'error',
+        message: 'Faculty not found'
+      });
+    }
+
+    console.log('👤 Faculty found:', {
+      id: faculty._id,
+      name: faculty.name,
+      email: faculty.email,
+      department: faculty.department,
+      userId: faculty.userId
+    });
+
+    // HODs can only delete faculty from their own department
+    if (currentUser.role === 'hod' && faculty.department !== currentUser.department) {
+      console.log('❌ Authorization failed: Department mismatch');
+      return res.status(403).json({
+        status: 'error',
+        message: 'You can only delete faculty from your own department'
+      });
+    }
+
+    // Prevent deleting faculty if they have active class assignments
+    const activeAssignments = await ClassAssignment.countDocuments({
+      facultyId: faculty.userId,
+      $or: [
+        { status: 'Active' },
+        { status: { $exists: false }, active: true }
+      ]
+    });
+
+    if (activeAssignments > 0) {
+      console.log('⚠️ Cannot delete faculty with active assignments:', activeAssignments);
+      return res.status(400).json({
+        status: 'error',
+        message: `Cannot delete faculty with ${activeAssignments} active class assignment(s). Please remove all class assignments first.`
+      });
+    }
+
+    // Delete the faculty record
+    await Faculty.findByIdAndDelete(id);
+    console.log('✅ Faculty record deleted:', id);
+
+    // Delete the corresponding user record
+    if (faculty.userId) {
+      await User.findByIdAndDelete(faculty.userId);
+      console.log('✅ User record deleted:', faculty.userId);
+    }
+
+    // Deactivate any remaining class assignments (safety measure)
+    await ClassAssignment.updateMany(
+      { facultyId: faculty.userId },
+      { 
+        $set: { 
+          status: 'Inactive',
+          active: false,
+          deactivatedDate: new Date(),
+          deactivatedBy: currentUser._id
+        }
+      }
+    );
+
+    console.log(`✅ Faculty and user deleted successfully: ${faculty.name} (${faculty.email})`);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Faculty deleted successfully',
+      data: {
+        id: faculty._id,
+        name: faculty.name,
+        email: faculty.email
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Delete faculty error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error while deleting faculty',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 export default router;
