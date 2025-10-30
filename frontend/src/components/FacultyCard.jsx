@@ -12,6 +12,14 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [assignmentToRemove, setAssignmentToRemove] = useState(null);
 
+  // Update assignments when faculty data changes (fixes initial load issue)
+  useEffect(() => {
+    if (faculty.assignedClasses !== undefined) {
+      console.log('📊 Updating assignments for faculty:', faculty.name, 'Count:', faculty.assignedClasses.length);
+      setAssignments(faculty.assignedClasses);
+    }
+  }, [faculty.assignedClasses, faculty.name]);
+
   // Fetch detailed assignments when card is expanded
   useEffect(() => {
     if (expanded && faculty._id) {
@@ -98,16 +106,24 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
     onUpdate();
   };
 
-  const getStatusColor = (assignmentCount) => {
-    if (assignmentCount === 0) return 'bg-red-100 text-red-800';
-    if (assignmentCount === 1) return 'bg-green-100 text-green-800';
+  const getStatusColor = (activeCount, totalCount) => {
+    if (totalCount === 0) return 'bg-red-100 text-red-800';
+    if (activeCount === 0) return 'bg-gray-100 text-gray-600';
+    if (activeCount === 1 && totalCount === 1) return 'bg-green-100 text-green-800';
+    if (activeCount >= 1) return 'bg-blue-100 text-blue-800';
     return 'bg-yellow-100 text-yellow-800';
   };
 
-  const getStatusText = (assignmentCount) => {
-    if (assignmentCount === 0) return 'Unassigned';
-    if (assignmentCount === 1) return 'Active Class Advisor';
-    return 'Multiple Assignments';
+  const getStatusText = (activeCount, totalCount) => {
+    if (totalCount === 0) return 'Unassigned';
+    if (activeCount === 0) return `${totalCount} Archived`;
+    if (activeCount === 1 && totalCount === 1) return 'Active Class Advisor';
+    if (activeCount === totalCount) return `${activeCount} Active Classes`;
+    return `${activeCount} Active, ${totalCount - activeCount} Archived`;
+  };
+
+  const getActiveCount = () => {
+    return assignments.filter(a => a.status === 'Active' || a.isActive).length;
   };
 
   const formatClassDisplay = (assignment) => {
@@ -131,8 +147,8 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-2">
                 <h3 className="text-lg font-semibold text-gray-900">{faculty.name}</h3>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(assignments.length)}`}>
-                  {getStatusText(assignments.length)}
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getActiveCount(), assignments.length)}`}>
+                  {getStatusText(getActiveCount(), assignments.length)}
                 </span>
               </div>
               
@@ -157,9 +173,25 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
                 </div>
               </div>
 
-              <div className="flex items-center text-sm text-gray-600">
-                <span className="font-medium mr-2">Assigned Classes:</span>
-                <span className="font-semibold text-blue-600">{assignments.length}</span>
+              <div className="flex items-center text-sm text-gray-600 space-x-4">
+                <div className="flex items-center">
+                  <span className="font-medium mr-2">Total Classes:</span>
+                  <span className="font-semibold text-blue-600">{assignments.length}</span>
+                </div>
+                {assignments.length > 0 && (
+                  <>
+                    <div className="flex items-center">
+                      <span className="font-medium mr-2">Active:</span>
+                      <span className="font-semibold text-green-600">{getActiveCount()}</span>
+                    </div>
+                    {assignments.length - getActiveCount() > 0 && (
+                      <div className="flex items-center">
+                        <span className="font-medium mr-2">Archived:</span>
+                        <span className="font-semibold text-gray-500">{assignments.length - getActiveCount()}</span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 
@@ -205,35 +237,57 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
                 </div>
               ) : assignments.length > 0 ? (
                 <div className="space-y-3">
-                  {assignments.map((assignment) => (
-                    <div
-                      key={assignment._id}
-                      className="bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span className="font-medium text-gray-900">
-                            {formatClassDisplay(assignment)}
-                          </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                            Active
-                          </span>
+                  {assignments.map((assignment) => {
+                    const isActive = assignment.status === 'Active' || assignment.isActive;
+                    const statusColor = isActive 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-600';
+                    const statusIcon = isActive ? '✓' : '📦';
+                    
+                    return (
+                      <div
+                        key={assignment._id}
+                        className={`rounded-lg border p-4 flex items-center justify-between ${
+                          isActive ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-300'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className={`font-medium ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
+                              {formatClassDisplay(assignment)}
+                            </span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColor}`}>
+                              {statusIcon} {assignment.status || (isActive ? 'Active' : 'Inactive')}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-500 space-y-0.5">
+                            <div>Assigned on {new Date(assignment.assignedDate).toLocaleDateString()}</div>
+                            {!isActive && assignment.deactivatedDate && (
+                              <div className="text-red-600">
+                                Deactivated on {new Date(assignment.deactivatedDate).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          Assigned on {new Date(assignment.assignedDate).toLocaleDateString()}
+                        
+                        <div className="flex items-center space-x-2">
+                          {isActive && (
+                            <button
+                              onClick={() => handleRemoveAssignmentClick(assignment)}
+                              className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
+                          {!isActive && (
+                            <span className="px-3 py-1 text-sm bg-gray-100 text-gray-500 rounded-md cursor-not-allowed">
+                              Archived
+                            </span>
+                          )}
                         </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleRemoveAssignmentClick(assignment)}
-                          className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">

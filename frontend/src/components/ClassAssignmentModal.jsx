@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const ClassAssignmentModal = ({ isOpen, onClose, faculty, onAssignmentUpdated }) => {
   const [formData, setFormData] = useState({
@@ -18,6 +19,9 @@ const ClassAssignmentModal = ({ isOpen, onClose, faculty, onAssignmentUpdated })
 
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   const sections = ['A', 'B', 'C'];
+  
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   
   // Dynamic semester options based on year
   const getSemesterOptions = (year) => {

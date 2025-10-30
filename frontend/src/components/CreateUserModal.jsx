@@ -2,9 +2,13 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Toast from './Toast';
 import { apiFetch } from '../utils/apiFetch';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const CreateUserModal = ({ isOpen, onClose, onUserCreated, userRole = 'admin' }) => {
   const { user } = useAuth();
+  
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [formData, setFormData] = useState({
     name: '',
     email: '',

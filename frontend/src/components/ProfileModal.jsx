@@ -1,9 +1,13 @@
 import { useState, useRef } from 'react';
 import { apiFetch } from '../utils/apiFetch';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
   console.log('🎨 ProfileModal received profileData:', profileData);
   console.log('🎨 ProfileModal received summary:', summary);
+  
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(!!profileData);
   
   const modalContentRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);

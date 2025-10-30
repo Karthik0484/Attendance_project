@@ -4,6 +4,7 @@ import Faculty from '../models/Faculty.js';
 import User from '../models/User.js';
 import ClassAssignment from '../models/ClassAssignment.js';
 import Student from '../models/Student.js';
+import Attendance from '../models/Attendance.js';
 import { authenticate, hodAndAbove, facultyAndAbove } from '../middleware/auth.js';
 import { createStudentWithStandardizedData } from '../services/studentCreationService.js';
 import { getStudentsForSemester } from '../services/multiSemesterStudentService.js';
@@ -87,6 +88,187 @@ router.get('/test-auth', hodAndAbove, (req, res) => {
       department: req.user.department
     }
   });
+});
+
+// @desc    Get all unique classes with students in department
+// @route   GET /api/faculty/hod/classes-with-students
+// @access  HOD and above
+router.get('/hod/classes-with-students', hodAndAbove, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const department = currentUser.department;
+
+    console.log('📚 Fetching all classes with students for department:', department);
+
+    // Find all active students in the department
+    const students = await Student.find({
+      department: department,
+      status: 'active'
+    }).select('batchYear year semester section semesters').lean();
+
+    console.log('👥 Found', students.length, 'students in', department);
+
+    // Create a set of unique classes
+    const uniqueClassesMap = new Map();
+
+    students.forEach(student => {
+      // Check semesters array (new multi-semester structure)
+      if (student.semesters && student.semesters.length > 0) {
+        student.semesters.forEach(sem => {
+          const classKey = `${sem.batch}_${sem.year}_${sem.semesterName}_${sem.section}`;
+          if (!uniqueClassesMap.has(classKey)) {
+            // Extract semester number from "Sem 3" format
+            const semMatch = sem.semesterName.match(/Sem (\d+)/);
+            const semesterNum = semMatch ? parseInt(semMatch[1]) : null;
+
+            uniqueClassesMap.set(classKey, {
+              classId: classKey,
+              batch: sem.batch,
+              year: sem.year,
+              semester: semesterNum,
+              semesterName: sem.semesterName,
+              section: sem.section,
+              displayName: `${sem.batch} | ${sem.year} | ${sem.semesterName} | Section ${sem.section}`
+            });
+          }
+        });
+      }
+      
+      // Also check legacy fields for backward compatibility
+      if (student.batchYear && student.year && student.semester && student.section) {
+        const classKey = `${student.batchYear}_${student.year}_${student.semester}_${student.section}`;
+        if (!uniqueClassesMap.has(classKey)) {
+          // Extract semester number from "Sem 3" format
+          const semMatch = student.semester.match(/Sem (\d+)/);
+          const semesterNum = semMatch ? parseInt(semMatch[1]) : null;
+
+          uniqueClassesMap.set(classKey, {
+            classId: classKey,
+            batch: student.batchYear,
+            year: student.year,
+            semester: semesterNum,
+            semesterName: student.semester,
+            section: student.section,
+            displayName: `${student.batchYear} | ${student.year} | ${student.semester} | Section ${student.section}`
+          });
+        }
+      }
+    });
+
+    const uniqueClasses = Array.from(uniqueClassesMap.values());
+    
+    // Sort classes by batch (descending), then by semester
+    uniqueClasses.sort((a, b) => {
+      if (b.batch !== a.batch) return b.batch.localeCompare(a.batch);
+      if (a.semester !== b.semester) return (a.semester || 0) - (b.semester || 0);
+      return a.section.localeCompare(b.section);
+    });
+
+    console.log('✅ Found', uniqueClasses.length, 'unique classes with students');
+
+    res.json({
+      success: true,
+      status: 'success',
+      data: uniqueClasses,
+      total: uniqueClasses.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching classes with students:', error);
+    res.status(500).json({
+      success: false,
+      status: 'error',
+      message: 'Error fetching classes with students',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get HOD dashboard statistics
+// @route   GET /api/faculty/hod/dashboard-stats
+// @access  HOD and above
+router.get('/hod/dashboard-stats', hodAndAbove, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const department = currentUser.department;
+
+    console.log('📊 Fetching HOD dashboard stats for department:', department);
+
+    // 1. Count total students in the department
+    const totalStudents = await User.countDocuments({
+      role: 'student',
+      department: department,
+      status: 'active'
+    });
+
+    // 2. Count total faculty in the department
+    const totalFaculty = await User.countDocuments({
+      role: 'faculty',
+      department: department,
+      status: 'active'
+    });
+
+    // 3. Calculate department average attendance
+    let avgAttendance = 0;
+    
+    // Get attendance records for the department
+    const attendanceRecords = await Attendance.find({
+      department: department,
+      date: { 
+        $gte: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0] // Current year in "YYYY-MM-DD" format
+      }
+    });
+
+    if (attendanceRecords.length > 0) {
+      // Calculate average attendance percentage from all department attendance records
+      let totalPresent = 0;
+      let totalClasses = 0;
+
+      attendanceRecords.forEach(record => {
+        // Use the aggregated totals from each attendance record
+        if (record.totalStudents && record.totalStudents > 0) {
+          totalClasses += record.totalStudents;
+          totalPresent += record.totalPresent || 0;
+        } else if (record.records && Array.isArray(record.records)) {
+          // Fallback: count from records array if totals not available
+          record.records.forEach(studentRecord => {
+            totalClasses++;
+            if (studentRecord.status === 'present') {
+              totalPresent++;
+            }
+          });
+        }
+      });
+
+      if (totalClasses > 0) {
+        avgAttendance = ((totalPresent / totalClasses) * 100).toFixed(1);
+      }
+    }
+
+    console.log('✅ HOD dashboard stats:', {
+      totalStudents,
+      totalFaculty,
+      avgAttendance: `${avgAttendance}%`,
+      attendanceRecordsFound: attendanceRecords.length
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalStudents,
+        totalFaculty,
+        avgAttendance: parseFloat(avgAttendance),
+        department
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching HOD dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard statistics',
+      error: error.message
+    });
+  }
 });
 
 // Generate batch ranges for the dropdown (2020-2030 with +4 years)
@@ -468,10 +650,37 @@ router.get('/list', hodAndAbove, async (req, res) => {
 
     const total = await Faculty.countDocuments(filter);
 
+    // Enrich each faculty with assigned classes information
+    const facultiesWithAssignments = await Promise.all(
+      faculties.map(async (faculty) => {
+        // Get ALL assigned classes for this faculty (both active and inactive)
+        // Note: ClassAssignment.facultyId references User._id, so we use faculty.userId
+        const classAssignments = await ClassAssignment.find({
+          facultyId: faculty.userId
+        }).lean();
+
+        // Add assigned classes array and count to faculty object
+        return {
+          ...faculty,
+          assignedClasses: classAssignments.map(assignment => ({
+            _id: assignment._id,
+            batch: assignment.batch,
+            year: assignment.year,
+            semester: assignment.semester,
+            section: assignment.section,
+            status: assignment.status || (assignment.active ? 'Active' : 'Inactive'),
+            assignedDate: assignment.assignedDate,
+            deactivatedDate: assignment.deactivatedDate
+          })),
+          assignedClassesCount: classAssignments.length
+        };
+      })
+    );
+
     res.status(200).json({
       status: 'success',
       data: {
-        faculties,
+        faculties: facultiesWithAssignments,
         pagination: {
           current: page,
           pages: Math.ceil(total / limit),
@@ -782,20 +991,41 @@ router.get('/:id/assignments', hodAndAbove, async (req, res) => {
       });
     }
 
-    // Get class assignments for this faculty (handle both old and new schema)
+    // Get ALL class assignments for this faculty (both active and inactive)
     const assignments = await ClassAssignment.find({
-      facultyId: faculty.userId,
-      $or: [
-        { status: 'Active' },
-        { status: { $exists: false }, active: true }
-      ]
-    }).populate('facultyId', 'name email');
+      facultyId: faculty.userId
+    })
+    .populate('facultyId', 'name email')
+    .sort({ assignedDate: -1 }); // Most recent first
+
+    // Format assignments with complete information
+    const classAssignments = assignments.map(assignment => {
+      const isActive = assignment.status === 'Active' || 
+                      (!assignment.status && assignment.active === true);
+      
+      return {
+        _id: assignment._id,
+        batch: assignment.batch,
+        year: assignment.year,
+        semester: assignment.semester,
+        section: assignment.section,
+        department: assignment.departmentId,
+        assignedDate: assignment.assignedDate,
+        deactivatedDate: assignment.deactivatedDate,
+        notes: assignment.notes,
+        status: isActive ? 'Active' : 'Inactive',
+        isActive: isActive,
+        assignedBy: assignment.assignedBy,
+        deactivatedBy: assignment.deactivatedBy
+      };
+    });
 
     res.status(200).json({
       status: 'success',
       data: {
         faculty,
-        assignments
+        assignments: classAssignments,
+        classAssignments: classAssignments // Provide both for compatibility
       }
     });
   } catch (error) {
@@ -1205,6 +1435,279 @@ router.delete('/:id', hodAndAbove, async (req, res) => {
       status: 'error',
       message: 'Server error while deleting faculty',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @desc    Get student reports with filtering and aggregation
+// @route   POST /api/faculty/hod/student-reports
+// @access  HOD and above
+router.post('/hod/student-reports', hodAndAbove, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { classId, facultyId, fromDate, toDate } = req.body;
+    
+    console.log('📊 Generating student reports for department:', currentUser.department);
+    console.log('Filters:', { classId, facultyId, fromDate, toDate });
+
+    // Build attendance query
+    const attendanceQuery = {
+      department: currentUser.department
+    };
+
+    // Add optional filters
+    if (classId) {
+      attendanceQuery.classId = classId;
+    }
+    if (facultyId) {
+      attendanceQuery.facultyId = facultyId;
+    }
+    if (fromDate || toDate) {
+      attendanceQuery.date = {};
+      if (fromDate) attendanceQuery.date.$gte = fromDate;
+      if (toDate) attendanceQuery.date.$lte = toDate;
+    }
+
+    // Fetch attendance records
+    const attendanceRecords = await Attendance.find(attendanceQuery)
+      .populate('facultyId', 'name email')
+      .sort({ date: -1 })
+      .lean();
+
+    console.log('📋 Found attendance records:', attendanceRecords.length);
+
+    // Aggregate data by student
+    const studentMap = new Map();
+
+    attendanceRecords.forEach(record => {
+      if (record.records && Array.isArray(record.records)) {
+        record.records.forEach(studentRecord => {
+          const studentId = studentRecord.studentId.toString();
+          
+          if (!studentMap.has(studentId)) {
+            studentMap.set(studentId, {
+              studentId: studentRecord.studentId,
+              studentName: studentRecord.name,
+              rollNumber: studentRecord.rollNumber,
+              email: studentRecord.email,
+              classId: record.classId,
+              totalSessions: 0,
+              attendedSessions: 0,
+              absentSessions: 0,
+              facultyNames: new Set(),
+              lastAttendanceDate: null
+            });
+          }
+
+          const studentData = studentMap.get(studentId);
+          studentData.totalSessions++;
+          
+          if (studentRecord.status === 'present') {
+            studentData.attendedSessions++;
+          } else {
+            studentData.absentSessions++;
+          }
+
+          // Track faculty names
+          if (record.facultyId && record.facultyId.name) {
+            studentData.facultyNames.add(record.facultyId.name);
+          }
+
+          // Track last attendance date
+          if (!studentData.lastAttendanceDate || record.date > studentData.lastAttendanceDate) {
+            studentData.lastAttendanceDate = record.date;
+          }
+        });
+      }
+    });
+
+    // Convert map to array and calculate percentages
+    const studentReports = Array.from(studentMap.values()).map(student => {
+      const attendancePercentage = student.totalSessions > 0
+        ? ((student.attendedSessions / student.totalSessions) * 100).toFixed(2)
+        : 0;
+
+      let category = 'Poor';
+      if (attendancePercentage >= 90) {
+        category = 'Excellent';
+      } else if (attendancePercentage >= 75) {
+        category = 'Good';
+      }
+
+      return {
+        studentId: student.studentId,
+        studentName: student.studentName,
+        rollNumber: student.rollNumber,
+        email: student.email,
+        classId: student.classId,
+        totalSessions: student.totalSessions,
+        attendedSessions: student.attendedSessions,
+        absentSessions: student.absentSessions,
+        attendancePercentage: parseFloat(attendancePercentage),
+        category,
+        facultyNames: Array.from(student.facultyNames),
+        lastAttendanceDate: student.lastAttendanceDate
+      };
+    });
+
+    // Sort by attendance percentage (descending)
+    studentReports.sort((a, b) => b.attendancePercentage - a.attendancePercentage);
+
+    // Calculate summary statistics
+    const summary = {
+      totalStudents: studentReports.length,
+      excellentCount: studentReports.filter(s => s.category === 'Excellent').length,
+      goodCount: studentReports.filter(s => s.category === 'Good').length,
+      poorCount: studentReports.filter(s => s.category === 'Poor').length,
+      avgAttendance: studentReports.length > 0
+        ? (studentReports.reduce((sum, s) => sum + s.attendancePercentage, 0) / studentReports.length).toFixed(2)
+        : 0
+    };
+
+    console.log('✅ Generated reports for', studentReports.length, 'students');
+    console.log('📈 Summary:', summary);
+
+    res.json({
+      success: true,
+      data: {
+        reports: studentReports,
+        summary,
+        filters: { classId, facultyId, fromDate, toDate },
+        generatedAt: new Date().toISOString(),
+        generatedBy: {
+          name: currentUser.name,
+          department: currentUser.department
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating student reports:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating student reports',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get detailed student attendance view
+// @route   GET /api/faculty/hod/student-reports/:studentId
+// @access  HOD and above
+router.get('/hod/student-reports/:studentId', hodAndAbove, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { studentId } = req.params;
+    const { fromDate, toDate } = req.query;
+
+    console.log('📊 Fetching detailed attendance for student:', studentId);
+
+    // Fetch student details
+    const student = await Student.findById(studentId)
+      .select('rollNumber name email parentMobile')
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Build query for attendance records
+    const query = {
+      department: currentUser.department,
+      'records.studentId': studentId
+    };
+
+    if (fromDate || toDate) {
+      query.date = {};
+      if (fromDate) query.date.$gte = fromDate;
+      if (toDate) query.date.$lte = toDate;
+    }
+
+    // Fetch attendance records
+    const attendanceRecords = await Attendance.find(query)
+      .populate('facultyId', 'name email')
+      .populate('createdBy', 'name')
+      .sort({ date: -1 })
+      .lean();
+
+    // Extract and format student-specific records
+    const detailedRecords = [];
+    let totalPresent = 0;
+    let totalAbsent = 0;
+    let consecutiveAbsences = 0;
+    let maxConsecutiveAbsences = 0;
+
+    attendanceRecords.forEach(record => {
+      const studentRecord = record.records.find(
+        r => r.studentId.toString() === studentId
+      );
+
+      if (studentRecord) {
+        const isPresent = studentRecord.status === 'present';
+        
+        if (isPresent) {
+          totalPresent++;
+          consecutiveAbsences = 0;
+        } else {
+          totalAbsent++;
+          consecutiveAbsences++;
+          maxConsecutiveAbsences = Math.max(maxConsecutiveAbsences, consecutiveAbsences);
+        }
+
+        detailedRecords.push({
+          date: record.date,
+          classId: record.classId,
+          facultyName: record.facultyId?.name || 'Unknown',
+          status: studentRecord.status,
+          reason: studentRecord.reason || null,
+          facultyNote: studentRecord.facultyNote || null,
+          reviewStatus: studentRecord.reviewStatus || 'Not Applicable',
+          createdBy: record.createdBy?.name || 'System'
+        });
+      }
+    });
+
+    const totalSessions = totalPresent + totalAbsent;
+    const attendancePercentage = totalSessions > 0
+      ? ((totalPresent / totalSessions) * 100).toFixed(2)
+      : 0;
+
+    let category = 'Poor';
+    if (attendancePercentage >= 90) category = 'Excellent';
+    else if (attendancePercentage >= 75) category = 'Good';
+
+    res.json({
+      success: true,
+      data: {
+        student: {
+          ...student,
+          studentId
+        },
+        attendance: {
+          totalSessions,
+          totalPresent,
+          totalAbsent,
+          attendancePercentage: parseFloat(attendancePercentage),
+          category
+        },
+        insights: {
+          maxConsecutiveAbsences,
+          currentConsecutiveAbsences: consecutiveAbsences,
+          lastAttendanceDate: detailedRecords.length > 0 ? detailedRecords[0].date : null
+        },
+        records: detailedRecords
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching detailed student attendance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching student attendance details',
+      error: error.message
     });
   }
 });

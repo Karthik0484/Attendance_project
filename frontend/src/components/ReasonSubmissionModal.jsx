@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { apiFetch } from '../utils/apiFetch';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const ReasonSubmissionModal = ({ isOpen, onClose, attendanceRecord, onSuccess }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

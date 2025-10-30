@@ -2,8 +2,11 @@ import { useState, useRef } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
 import * as XLSX from 'xlsx';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const BulkUploadModal = ({ isOpen, onClose, onStudentsAdded, classInfo }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [step, setStep] = useState(1); // 1: Upload, 2: Preview, 3: Validation, 4: Processing, 5: Complete
   const [file, setFile] = useState(null);
   const [fileData, setFileData] = useState([]);

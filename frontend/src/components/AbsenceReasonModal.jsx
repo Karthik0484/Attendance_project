@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { apiFetch } from '../utils/apiFetch';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const AbsenceReasonModal = ({ isOpen, onClose, attendance, studentId, classId, onSuccess }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

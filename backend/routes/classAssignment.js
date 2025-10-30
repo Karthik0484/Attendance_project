@@ -329,6 +329,9 @@ router.get('/department', authenticate, hodAndAbove, async (req, res) => {
     const currentUser = req.user;
     const { status = 'Active' } = req.query;
 
+    console.log('📚 Fetching class assignments for HOD:', currentUser.name, 'Department:', currentUser.department);
+
+    // Query by the HOD's user ID (departmentId field)
     const filter = {
       departmentId: currentUser._id
     };
@@ -338,38 +341,41 @@ router.get('/department', authenticate, hodAndAbove, async (req, res) => {
     }
 
     const assignments = await ClassAssignment.find(filter)
-      .populate('facultyId', 'name email position')
+      .populate('facultyId', 'name email position department')
       .populate('assignedBy', 'name email')
       .populate('deactivatedBy', 'name email')
       .sort({ assignedDate: -1 });
 
-    // Group assignments by class
-    const classGroups = {};
+    // Create unique classes list for frontend
+    const uniqueClassesMap = new Map();
     assignments.forEach(assignment => {
-      const key = `${assignment.batch}-${assignment.year}-${assignment.semester}-${assignment.section}`;
-      if (!classGroups[key]) {
-        classGroups[key] = {
-          classInfo: {
-            batch: assignment.batch,
-            year: assignment.year,
-            semester: assignment.semester,
-            section: assignment.section,
-            classDisplay: assignment.classDisplay
-          },
-          assignments: []
-        };
+      const classKey = `${assignment.batch}_${assignment.year}_Sem ${assignment.semester}_${assignment.section}`;
+      if (!uniqueClassesMap.has(classKey)) {
+        uniqueClassesMap.set(classKey, {
+          classId: classKey,
+          batch: assignment.batch,
+          year: assignment.year,
+          semester: assignment.semester,
+          section: assignment.section,
+          displayName: `${assignment.batch} | ${assignment.year} | Sem ${assignment.semester} | Section ${assignment.section}`,
+          facultyId: assignment.facultyId?._id,
+          facultyName: assignment.facultyId?.name,
+          status: assignment.status
+        });
       }
-      classGroups[key].assignments.push(assignment);
     });
+
+    const uniqueClasses = Array.from(uniqueClassesMap.values());
+
+    console.log('✅ Found', assignments.length, 'assignments,', uniqueClasses.length, 'unique classes');
 
     res.status(200).json({
       status: 'success',
-      data: {
-        assignments: Object.values(classGroups),
-        total: assignments.length,
-        activeCount: assignments.filter(a => a.active).length,
-        inactiveCount: assignments.filter(a => !a.active).length
-      }
+      data: uniqueClasses,
+      allAssignments: assignments,
+      total: assignments.length,
+      activeCount: assignments.filter(a => a.status === 'Active').length,
+      inactiveCount: assignments.filter(a => a.status === 'Inactive').length
     });
   } catch (error) {
     console.error('Error fetching department assignments:', error);

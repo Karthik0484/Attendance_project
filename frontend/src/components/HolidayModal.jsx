@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const HolidayModal = ({ isOpen, onClose, onSuccess, selectedDate }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [formData, setFormData] = useState({
     date: selectedDate || new Date().toISOString().split('T')[0],
     reason: ''

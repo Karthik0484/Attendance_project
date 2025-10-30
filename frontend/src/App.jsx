@@ -12,6 +12,7 @@ import ClassAttendanceManagement from './pages/ClassAttendanceManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
 import SemesterDetailPage from './pages/SemesterDetailPage';
+import StudentReportsPage from './pages/StudentReportsPage';
 import ClassManagementPage from './pages/ClassManagementPage';
 import ClassSelectionPage from './pages/ClassSelectionPage';
 import AssignedBatchesPage from './pages/AssignedBatchesPage';
@@ -54,6 +55,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['hod']}>
                   <HODDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/hod/student-reports" 
+              element={
+                <ProtectedRoute allowedRoles={['hod', 'admin', 'principal']}>
+                  <StudentReportsPage />
                 </ProtectedRoute>
               } 
             />

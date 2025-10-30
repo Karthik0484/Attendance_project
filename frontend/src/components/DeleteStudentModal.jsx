@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const DeleteStudentModal = ({ isOpen, onClose, student, onStudentDeleted }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 

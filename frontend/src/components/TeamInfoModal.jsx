@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import projectInfo from '../config/projectInfo';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const TeamInfoModal = ({ isOpen, onClose }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
+
   // Close modal on ESC key press
   useEffect(() => {
     const handleEscape = (e) => {
@@ -12,12 +16,10 @@ const TeamInfoModal = ({ isOpen, onClose }) => {
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden'; // Prevent background scroll
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
 

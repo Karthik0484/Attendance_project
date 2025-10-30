@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Toast from './Toast';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const CreateFacultyModal = ({ isOpen, onClose, onFacultyCreated }) => {
   const { user } = useAuth();
+  
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [formData, setFormData] = useState({
     name: '',
     email: '',

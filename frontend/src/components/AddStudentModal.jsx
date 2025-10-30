@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const AddStudentModal = ({ isOpen, onClose, onStudentCreated, batchInfo }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [formData, setFormData] = useState({
     rollNumber: '',
     name: '',

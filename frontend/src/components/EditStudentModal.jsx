@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import Toast from './Toast';
+import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
 const EditStudentModal = ({ isOpen, onClose, student, onStudentUpdated }) => {
+  // Prevent background scrolling when modal is open
+  usePreventBodyScroll(isOpen);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
