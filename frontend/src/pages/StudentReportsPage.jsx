@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
 import * as XLSX from 'xlsx';
@@ -6,10 +7,12 @@ import StudentDetailModal from '../components/StudentDetailModal';
 
 const StudentReportsPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState([]);
   const [summary, setSummary] = useState(null);
   const [generatedInfo, setGeneratedInfo] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
   
   // Filters
   const [classId, setClassId] = useState('');
@@ -44,27 +47,20 @@ const StudentReportsPage = () => {
         method: 'GET'
       });
 
-      console.log('📚 Classes with students response:', classResponse.data);
-
       if (classResponse.data.status === 'success') {
-        // The backend returns all unique classes that have students
-        const uniqueClasses = classResponse.data.data || [];
-        console.log('✅ Unique classes with students found:', uniqueClasses.length, uniqueClasses);
-        setClasses(uniqueClasses);
+        setClasses(classResponse.data.data || []);
       }
 
-      // Fetch faculty list from the department
+      // Fetch faculty list filtered by department
       const facultyResponse = await apiFetch({
-        url: `/api/faculty/list?limit=100`,
+        url: '/api/faculty/list',
         method: 'GET'
       });
 
       if (facultyResponse.data.status === 'success') {
-        // Filter faculty by the HOD's department
         const departmentFaculty = facultyResponse.data.data.faculties.filter(
           f => f.department === user.department
         );
-        console.log('👨‍🏫 Faculty in', user.department, ':', departmentFaculty.length);
         setFaculties(departmentFaculty);
       }
     } catch (error) {
@@ -76,26 +72,31 @@ const StudentReportsPage = () => {
     try {
       setLoading(true);
       
+      const params = new URLSearchParams();
+      if (classId) params.append('classId', classId);
+      if (facultyId) params.append('facultyId', facultyId);
+      if (fromDate) params.append('fromDate', fromDate);
+      if (toDate) params.append('toDate', toDate);
+
       const response = await apiFetch({
-        url: '/api/faculty/hod/student-reports',
-        method: 'POST',
-        data: {
-          classId: classId || undefined,
-          facultyId: facultyId || undefined,
-          fromDate: fromDate || undefined,
-          toDate: toDate || undefined
-        }
+        url: `/api/hod/student-reports?${params.toString()}`,
+        method: 'GET'
       });
 
       if (response.data.success) {
-        setReports(response.data.data.reports);
-        setSummary(response.data.data.summary);
-        setGeneratedInfo(response.data.data);
+        setReports(response.data.data.reports || []);
+        setSummary(response.data.data.summary || null);
+        setGeneratedInfo({
+          department: user.department,
+          generatedBy: user.name,
+          timestamp: new Date().toISOString()
+        });
+        setLastUpdated(new Date());
         setCurrentPage(1);
       }
     } catch (error) {
-      console.error('Error generating reports:', error);
-      alert('Failed to generate reports. Please try again.');
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -110,162 +111,111 @@ const StudentReportsPage = () => {
     }
   };
 
-  const handleViewDetails = (student) => {
-    setSelectedStudent(student);
-    setShowDetailModal(true);
-  };
-
-  const handleExportExcel = () => {
+  const handleExport = () => {
     if (reports.length === 0) {
       alert('No data to export');
       return;
     }
 
-    const exportData = reports.map(r => ({
-      'Roll Number': r.rollNumber,
-      'Student Name': r.studentName,
-      'Email': r.email,
-      'Class': r.classId,
-      'Total Sessions': r.totalSessions,
-      'Attended': r.attendedSessions,
-      'Absent': r.absentSessions,
-      'Attendance %': r.attendancePercentage,
-      'Category': r.category,
-      'Faculty': r.facultyNames.join(', '),
-      'Last Attendance': r.lastAttendanceDate
+    const exportData = sortedReports.map(student => ({
+      'Roll Number': student.rollNumber,
+      'Student Name': student.studentName,
+      'Email': student.email,
+      'Class': student.class,
+      'Faculty': student.facultyName || 'N/A',
+      'Total Sessions': student.totalSessions,
+      'Attended': student.attendedSessions,
+      'Attendance %': student.attendancePercentage,
+      'Category': student.category
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Student Reports');
 
-    // Add header info
-    const headerInfo = [
-      [`Student Attendance Report - ${user.department} Department`],
-      [`Generated by: ${generatedInfo?.generatedBy?.name || user.name}`],
-      [`Generated at: ${new Date(generatedInfo?.generatedAt || new Date()).toLocaleString()}`],
-      [`Date Range: ${fromDate || 'All'} to ${toDate || 'All'}`],
-      [] // Empty row
-    ];
-
-    XLSX.utils.sheet_add_aoa(ws, headerInfo, { origin: 'A1' });
-    
-    const filename = `Student_Report_${user.department}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filename = `Student_Reports_${user.department}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(wb, filename);
   };
 
-  // Filter and sort reports
-  const getFilteredAndSortedReports = () => {
-    let filtered = [...reports];
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(r => 
-        r.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let aVal = a[sortBy];
-      let bVal = b[sortBy];
-
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
-      }
-
-      if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
-      }
-    });
-
-    return filtered;
+  const handleViewDetails = async (student) => {
+    setSelectedStudent(student);
+    setShowDetailModal(true);
   };
 
-  const filteredReports = getFilteredAndSortedReports();
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
-  const paginatedReports = filteredReports.slice(
+  // Filter and sort reports
+  const filteredReports = reports.filter(student =>
+    student.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.rollNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const sortedReports = [...filteredReports].sort((a, b) => {
+    let aVal = a[sortBy];
+    let bVal = b[sortBy];
+    
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+    
+    if (sortOrder === 'asc') {
+      return aVal > bVal ? 1 : -1;
+    } else {
+      return aVal < bVal ? 1 : -1;
+    }
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(sortedReports.length / itemsPerPage);
+  const paginatedReports = sortedReports.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  const getCategoryColor = (category) => {
-    switch (category) {
-      case 'Excellent':
-        return 'bg-green-100 text-green-800';
-      case 'Good':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Poor':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case 'Excellent':
-        return '🌟';
-      case 'Good':
-        return '👍';
-      case 'Poor':
-        return '⚠️';
-      default:
-        return '📊';
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      <header className="bg-white shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-5">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => window.history.back()}
-                className="w-10 h-10 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center hover:from-gray-200 hover:to-gray-300 transition-all"
-              >
-                ←
-              </button>
-              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-2xl">📊</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  Student Reports
-                </h1>
-                <p className="text-gray-600 text-sm">{user?.department} Department</p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate('/hod/dashboard')}
+          className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors group"
+        >
+          <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="text-sm font-medium">Back to Dashboard</span>
+        </button>
+
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Student Reports</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-green-50 text-green-700 border border-green-100">
+              {user.department}
+            </span>
+            {lastUpdated && (
+              <span className="text-sm text-gray-500">
+                Last updated: {lastUpdated.toLocaleTimeString('en-US', { 
+                  hour: '2-digit', 
+                  minute: '2-digit',
+                  hour12: true 
+                })}
+              </span>
+            )}
           </div>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filter Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-100">
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center mr-3">
-              <span className="text-xl">🔍</span>
-            </div>
-            <h2 className="text-xl font-bold text-gray-800">Filter Reports</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* Filters Section */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Generate Report</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            {/* Class Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                📚 Class
+                Class
               </label>
               <select
                 value={classId}
                 onChange={(e) => setClassId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
               >
                 <option value="">All Classes ({classes.length})</option>
                 {classes.map(cls => (
@@ -276,24 +226,26 @@ const StudentReportsPage = () => {
               </select>
             </div>
 
+            {/* Faculty Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                👨‍🏫 Faculty
+                Faculty
               </label>
               <select
                 value={facultyId}
                 onChange={(e) => setFacultyId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
               >
                 <option value="">All Faculty ({faculties.length})</option>
-                {faculties.map(fac => (
-                  <option key={fac._id} value={fac.userId || fac._id}>
-                    {fac.name} - {fac.position}
+                {faculties.map(faculty => (
+                  <option key={faculty.userId} value={faculty.userId}>
+                    {faculty.name}
                   </option>
                 ))}
               </select>
             </div>
 
+            {/* From Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 From Date
@@ -302,10 +254,11 @@ const StudentReportsPage = () => {
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
               />
             </div>
 
+            {/* To Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 To Date
@@ -314,150 +267,227 @@ const StudentReportsPage = () => {
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <button
-              onClick={handleGenerateReport}
-              disabled={loading}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? '⏳ Generating...' : '📊 Generate Report'}
-            </button>
-
-            {reports.length > 0 && (
-              <button
-                onClick={handleExportExcel}
-                className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
-              >
-                📥 Export to Excel
-              </button>
+          <button
+            onClick={handleGenerateReport}
+            disabled={loading}
+            className="w-full md:w-auto px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Generate Report
+              </>
             )}
-          </div>
+          </button>
         </div>
 
         {/* Summary Cards */}
         {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-xl p-6">
-              <div className="text-white text-opacity-90 text-sm font-medium mb-1">Total Students</div>
-              <div className="text-4xl font-bold text-white">{summary.totalStudents}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            {/* Total Students */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shadow-sm">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-500 mb-1">Total Students</h3>
+              <p className="text-3xl font-bold text-blue-700">{summary.totalStudents}</p>
             </div>
 
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-xl p-6">
-              <div className="text-white text-opacity-90 text-sm font-medium mb-1">Excellent (≥90%)</div>
-              <div className="text-4xl font-bold text-white">{summary.excellentCount}</div>
+            {/* Excellent */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center shadow-sm">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-500 mb-1">Excellent (&ge;90%)</h3>
+              <p className="text-3xl font-bold text-green-700">{summary.excellent}</p>
             </div>
 
-            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl shadow-xl p-6">
-              <div className="text-white text-opacity-90 text-sm font-medium mb-1">Good (75-89%)</div>
-              <div className="text-4xl font-bold text-white">{summary.goodCount}</div>
+            {/* Good */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-full bg-yellow-50 flex items-center justify-center shadow-sm">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-500 mb-1">Good (75-89%)</h3>
+              <p className="text-3xl font-bold text-yellow-700">{summary.good}</p>
             </div>
 
-            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl shadow-xl p-6">
-              <div className="text-white text-opacity-90 text-sm font-medium mb-1">Poor (&lt;75%)</div>
-              <div className="text-4xl font-bold text-white">{summary.poorCount}</div>
+            {/* Poor */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center shadow-sm">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-sm font-medium text-gray-500 mb-1">Poor (&lt;75%)</h3>
+              <p className="text-3xl font-bold text-red-700">{summary.poor}</p>
             </div>
           </div>
         )}
 
         {/* Reports Table */}
         {reports.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            {/* Search and controls */}
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            {/* Table Header */}
+            <div className="p-6 border-b border-gray-100">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex-1 max-w-md">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-800">Student Report Details</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Showing {paginatedReports.length} of {sortedReports.length} students
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  {/* Search */}
                   <input
                     type="text"
-                    placeholder="Search by name, roll number, or email..."
+                    placeholder="Search by name, roll no..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
-                </div>
-                <div className="text-sm text-gray-600">
-                  Showing {filteredReports.length} of {reports.length} students
+                  {/* Export Button */}
+                  <button
+                    onClick={handleExport}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th
-                      className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    <th 
                       onClick={() => handleSort('rollNumber')}
+                      className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                     >
-                      Roll Number {sortBy === 'rollNumber' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      <div className="flex items-center gap-1">
+                        Roll No
+                        {sortBy === 'rollNumber' && (
+                          <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
-                    <th
-                      className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    <th 
                       onClick={() => handleSort('studentName')}
+                      className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                     >
-                      Student Name {sortBy === 'studentName' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      <div className="flex items-center gap-1">
+                        Student Name
+                        {sortBy === 'studentName' && (
+                          <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Class
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Faculty
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Sessions
                     </th>
-                    <th
-                      className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    <th 
                       onClick={() => handleSort('attendancePercentage')}
+                      className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                     >
-                      Attendance % {sortBy === 'attendancePercentage' && (sortOrder === 'asc' ? '↑' : '↓')}
+                      <div className="flex items-center gap-1">
+                        Attendance
+                        {sortBy === 'attendancePercentage' && (
+                          <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Category
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-100">
                   {paginatedReports.map((student, index) => (
-                    <tr key={student.studentId} className="hover:bg-gray-50 transition-colors">
+                    <tr key={index} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {student.rollNumber}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{student.studentName}</div>
-                        <div className="text-sm text-gray-500">{student.email}</div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {student.studentName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {student.classId}
+                        {student.class}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="text-sm font-medium text-gray-900">{student.totalSessions}</div>
-                        <div className="text-xs text-gray-500">
-                          {student.attendedSessions}P / {student.absentSessions}A
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {student.facultyName || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <div className="text-xs">
+                          <span className="text-green-600 font-medium">{student.attendedSessions}</span>
+                          {' / '}
+                          <span className="text-gray-600 font-medium">{student.totalSessions}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="text-lg font-bold" style={{
-                          color: student.attendancePercentage >= 90 ? '#10b981' :
-                                 student.attendancePercentage >= 75 ? '#f59e0b' : '#ef4444'
-                        }}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold ${
+                          student.attendancePercentage >= 90
+                            ? 'bg-green-50 text-green-700 border border-green-100'
+                            : student.attendancePercentage >= 75
+                            ? 'bg-yellow-50 text-yellow-700 border border-yellow-100'
+                            : 'bg-red-50 text-red-700 border border-red-100'
+                        }`}>
                           {student.attendancePercentage}%
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(student.category)}`}>
-                          {getCategoryIcon(student.category)} {student.category}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                          student.category === 'Excellent'
+                            ? 'bg-green-100 text-green-700'
+                            : student.category === 'Good'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {student.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
                           onClick={() => handleViewDetails(student)}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
+                          className="text-green-600 hover:text-green-900 font-medium"
                         >
                           View Details
                         </button>
@@ -470,24 +500,26 @@ const StudentReportsPage = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <span className="text-sm text-gray-600">
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
                   Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -495,22 +527,24 @@ const StudentReportsPage = () => {
 
         {/* Empty State */}
         {!loading && reports.length === 0 && (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-4xl">📊</span>
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">No Reports Generated Yet</h3>
-            <p className="text-gray-600 mb-6">
-              Select your filters above and click "Generate Report" to view student attendance data.
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">No Reports Generated Yet</h3>
+            <p className="text-gray-600 mb-4">
+              Select filters and click "Generate Report" to view student attendance data
             </p>
           </div>
         )}
-      </main>
+      </div>
 
       {/* Student Detail Modal */}
       {showDetailModal && selectedStudent && (
         <StudentDetailModal
-          studentId={selectedStudent.studentId}
+          student={selectedStudent}
           onClose={() => {
             setShowDetailModal(false);
             setSelectedStudent(null);
@@ -522,4 +556,3 @@ const StudentReportsPage = () => {
 };
 
 export default StudentReportsPage;
-

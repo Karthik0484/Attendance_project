@@ -1,11 +1,22 @@
 import mongoose from 'mongoose';
 
 const notificationSchema = new mongoose.Schema({
+  // Support both old (facultyId) and new (userId) notification systems
   facultyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Faculty',
-    required: true,
+    required: false,
     index: true
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+    index: true
+  },
+  title: {
+    type: String,
+    maxlength: 200
   },
   message: {
     type: String,
@@ -17,6 +28,11 @@ const notificationSchema = new mongoose.Schema({
     enum: ['holiday', 'absence_reason', 'attendance', 'semester', 'system', 'announcement'],
     required: true,
     index: true
+  },
+  department: {
+    type: String,
+    enum: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
+    required: false
   },
   classRef: {
     type: String, // classId format: batch_year_semester_section
@@ -40,6 +56,11 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  sentBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -54,9 +75,21 @@ const notificationSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Custom validation: at least one of facultyId or userId must be present
+notificationSchema.pre('validate', function(next) {
+  if (!this.facultyId && !this.userId) {
+    this.invalidate('userId', 'Either facultyId or userId must be provided');
+  }
+  next();
+});
+
 // Index for efficient queries
 notificationSchema.index({ facultyId: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ facultyId: 1, type: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, type: 1, createdAt: -1 });
+notificationSchema.index({ department: 1, createdAt: -1 });
+notificationSchema.index({ sentBy: 1, createdAt: -1 });
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // Auto-delete expired notifications
 
 // Static method to create notification
@@ -71,7 +104,7 @@ notificationSchema.statics.createNotification = async function(data) {
   }
 };
 
-// Static method to get unread count
+// Static method to get unread count for faculty (legacy)
 notificationSchema.statics.getUnreadCount = async function(facultyId) {
   try {
     return await this.countDocuments({ facultyId, read: false });
@@ -81,7 +114,17 @@ notificationSchema.statics.getUnreadCount = async function(facultyId) {
   }
 };
 
-// Static method to mark all as read
+// Static method to get unread count for user (new)
+notificationSchema.statics.getUnreadCountForUser = async function(userId) {
+  try {
+    return await this.countDocuments({ userId, read: false });
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    return 0;
+  }
+};
+
+// Static method to mark all as read for faculty (legacy)
 notificationSchema.statics.markAllAsRead = async function(facultyId) {
   try {
     await this.updateMany({ facultyId, read: false }, { read: true });
@@ -92,7 +135,17 @@ notificationSchema.statics.markAllAsRead = async function(facultyId) {
   }
 };
 
+// Static method to mark all as read for user (new)
+notificationSchema.statics.markAllAsReadForUser = async function(userId) {
+  try {
+    await this.updateMany({ userId, read: false }, { read: true });
+    return true;
+  } catch (error) {
+    console.error('Error marking all as read:', error);
+    return false;
+  }
+};
+
 const Notification = mongoose.model('Notification', notificationSchema);
 
 export default Notification;
-

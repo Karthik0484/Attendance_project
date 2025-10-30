@@ -8,7 +8,7 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
-// @desc    Get notifications for a faculty member
+// @desc    Get notifications for a user (supports both old facultyId and new userId)
 // @route   GET /api/notifications
 // @access  Faculty and above
 router.get('/', facultyAndAbove, async (req, res) => {
@@ -16,18 +16,16 @@ router.get('/', facultyAndAbove, async (req, res) => {
     const { unread, type, limit = 10, page = 1 } = req.query;
     const userId = req.user._id;
 
-    // Get faculty record
+    // Try to get faculty record (for old notifications)
     const faculty = await Faculty.findOne({ userId, status: 'active' });
-    
-    if (!faculty) {
-      return res.status(404).json({
-        success: false,
-        message: 'Faculty profile not found'
-      });
-    }
 
-    // Build query
-    const query = { facultyId: faculty._id };
+    // Build query - support both old (facultyId) and new (userId) notifications
+    const query = {
+      $or: [
+        { userId: userId }, // New system: user-based notifications
+        ...(faculty ? [{ facultyId: faculty._id }] : []) // Old system: faculty-based notifications
+      ]
+    };
     
     if (unread === 'true') {
       query.read = false;
@@ -40,17 +38,24 @@ router.get('/', facultyAndAbove, async (req, res) => {
     // Get notifications with pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const [notifications, total, unreadCount] = await Promise.all([
+    const [notifications, total] = await Promise.all([
       Notification.find(query)
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip(skip)
+        .populate('sentBy', 'name')
         .lean(),
-      Notification.countDocuments(query),
-      Notification.getUnreadCount(faculty._id)
+      Notification.countDocuments(query)
     ]);
 
-    console.log(`✅ Fetched ${notifications.length} notifications for faculty ${faculty.name}`);
+    // Get unread count for both systems
+    const unreadQuery = {
+      ...query,
+      read: false
+    };
+    const unreadCount = await Notification.countDocuments(unreadQuery);
+
+    console.log(`✅ Fetched ${notifications.length} notifications for user ${req.user.name} (${req.user.role})`);
 
     res.json({
       success: true,
@@ -81,17 +86,18 @@ router.get('/', facultyAndAbove, async (req, res) => {
 router.get('/unread-count', facultyAndAbove, async (req, res) => {
   try {
     const userId = req.user._id;
-
     const faculty = await Faculty.findOne({ userId, status: 'active' });
-    
-    if (!faculty) {
-      return res.status(404).json({
-        success: false,
-        message: 'Faculty profile not found'
-      });
-    }
 
-    const unreadCount = await Notification.getUnreadCount(faculty._id);
+    // Build query for both old and new notification systems
+    const query = {
+      $or: [
+        { userId: userId },
+        ...(faculty ? [{ facultyId: faculty._id }] : [])
+      ],
+      read: false
+    };
+
+    const unreadCount = await Notification.countDocuments(query);
 
     res.json({
       success: true,
@@ -114,18 +120,17 @@ router.patch('/:id/read', facultyAndAbove, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
-
     const faculty = await Faculty.findOne({ userId, status: 'active' });
-    
-    if (!faculty) {
-      return res.status(404).json({
-        success: false,
-        message: 'Faculty profile not found'
-      });
-    }
 
+    // Find notification that belongs to this user (either by userId or facultyId)
     const notification = await Notification.findOneAndUpdate(
-      { _id: id, facultyId: faculty._id },
+      {
+        _id: id,
+        $or: [
+          { userId: userId },
+          ...(faculty ? [{ facultyId: faculty._id }] : [])
+        ]
+      },
       { read: true },
       { new: true }
     );
@@ -159,19 +164,21 @@ router.patch('/:id/read', facultyAndAbove, async (req, res) => {
 router.patch('/mark-all-read', facultyAndAbove, async (req, res) => {
   try {
     const userId = req.user._id;
-
     const faculty = await Faculty.findOne({ userId, status: 'active' });
-    
-    if (!faculty) {
-      return res.status(404).json({
-        success: false,
-        message: 'Faculty profile not found'
-      });
-    }
 
-    await Notification.markAllAsRead(faculty._id);
+    // Update all notifications for this user (both old and new systems)
+    await Notification.updateMany(
+      {
+        $or: [
+          { userId: userId },
+          ...(faculty ? [{ facultyId: faculty._id }] : [])
+        ],
+        read: false
+      },
+      { read: true }
+    );
 
-    console.log(`✅ Marked all notifications as read for faculty ${faculty.name}`);
+    console.log(`✅ Marked all notifications as read for user ${req.user.name}`);
 
     res.json({
       success: true,
@@ -194,19 +201,14 @@ router.delete('/:id', facultyAndAbove, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
-
     const faculty = await Faculty.findOne({ userId, status: 'active' });
-    
-    if (!faculty) {
-      return res.status(404).json({
-        success: false,
-        message: 'Faculty profile not found'
-      });
-    }
 
     const notification = await Notification.findOneAndDelete({
       _id: id,
-      facultyId: faculty._id
+      $or: [
+        { userId: userId },
+        ...(faculty ? [{ facultyId: faculty._id }] : [])
+      ]
     });
 
     if (!notification) {

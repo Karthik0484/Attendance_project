@@ -2,20 +2,24 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
-const StudentDetailModal = ({ studentId, onClose }) => {
+const StudentDetailModal = ({ student, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
   // Prevent background scrolling when modal is open
-  usePreventBodyScroll(!!studentId);
+  usePreventBodyScroll(!!student);
 
   useEffect(() => {
-    fetchStudentDetails();
-  }, [studentId, fromDate, toDate]);
+    if (student?.studentId) {
+      fetchStudentDetails();
+    }
+  }, [student, fromDate, toDate]);
 
   const fetchStudentDetails = async () => {
+    if (!student?.studentId) return;
+    
     try {
       setLoading(true);
       
@@ -24,7 +28,7 @@ const StudentDetailModal = ({ studentId, onClose }) => {
       if (toDate) params.append('toDate', toDate);
       
       const response = await apiFetch({
-        url: `/api/faculty/hod/student-reports/${studentId}?${params.toString()}`,
+        url: `/api/hod/student-reports/${student.studentId}?${params.toString()}`,
         method: 'GET'
       });
 
@@ -33,7 +37,7 @@ const StudentDetailModal = ({ studentId, onClose }) => {
       }
     } catch (error) {
       console.error('Error fetching student details:', error);
-      alert('Failed to fetch student details');
+      alert('Failed to fetch student details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -70,10 +74,11 @@ const StudentDetailModal = ({ studentId, onClose }) => {
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">Student Attendance Details</h2>
-              {data && (
+              {(data || student) && (
                 <div className="text-blue-100 text-sm space-y-1">
-                  <p>Roll Number: {data.student.rollNumber}</p>
-                  <p>Email: {data.student.email}</p>
+                  <p className="font-semibold text-lg text-white mb-1">{student?.studentName || data?.student?.name}</p>
+                  <p>Roll Number: {student?.rollNumber || data?.student?.rollNumber}</p>
+                  <p>Email: {student?.email || data?.student?.email}</p>
                 </div>
               )}
             </div>

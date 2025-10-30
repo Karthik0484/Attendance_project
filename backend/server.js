@@ -18,6 +18,7 @@ import attendanceReasonRoutes from './routes/attendanceReason.js';
 import notificationRoutes from './routes/notification.js';
 import absenteeReportRoutes from './routes/absenteeReport.js';
 import classRoutes from './routes/classes.js';
+import hodDashboardRoutes from './routes/hodDashboard.js';
 import config from './config/config.js';
 import Student from './models/Student.js';
 import Attendance from './models/Attendance.js';
@@ -94,6 +95,8 @@ app.use('/api/class-assignment', classAssignmentRoutes);
 app.use('/api/semesters', semesterRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', absenteeReportRoutes);
+console.log('🔧 Registering HOD dashboard routes at /api/hod');
+app.use('/api/hod', hodDashboardRoutes);
 console.log('✅ All routes registered successfully');
 
 // Health check route

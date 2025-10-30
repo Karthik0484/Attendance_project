@@ -183,10 +183,12 @@ const ClassAssignmentModal = ({ isOpen, onClose, faculty, onAssignmentUpdated })
   };
 
   const getAvailableBatches = () => {
-    const currentYear = new Date().getFullYear();
     const batches = [];
-    for (let i = 0; i < 10; i++) {
-      const startYear = currentYear + i;
+    const startFromYear = 2022; // Start from 2022
+    const numberOfBatches = 15; // Generate 15 batches (2022-2026 through 2036-2040)
+    
+    for (let i = 0; i < numberOfBatches; i++) {
+      const startYear = startFromYear + i;
       const endYear = startYear + 4;
       batches.push(`${startYear}-${endYear}`);
     }
@@ -364,26 +366,77 @@ const ClassAssignmentModal = ({ isOpen, onClose, faculty, onAssignmentUpdated })
                 </p>
               </div>
 
-              {/* Available Classes Preview */}
+              {/* Section Status Preview */}
               {formData.batch && formData.year && formData.semester && (
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Available Sections</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {getFilteredAvailableClasses().map((cls, index) => (
-                      <span
-                        key={index}
-                        className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                          cls.section === formData.section
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        Section {cls.section}
-                      </span>
-                    ))}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Section Status
+                  </h4>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {sections.map((section) => {
+                      const isAvailable = getFilteredAvailableClasses().some(cls => cls.section === section);
+                      const isSelected = formData.section === section;
+                      const assignedClass = assignedClasses.find(
+                        cls => cls.batch === formData.batch && 
+                               cls.year === formData.year && 
+                               cls.semester === parseInt(formData.semester) && 
+                               cls.section === section
+                      );
+
+                      return (
+                        <div
+                          key={section}
+                          className={`inline-flex items-center px-3 py-2 text-xs font-medium rounded-lg border-2 ${
+                            isSelected
+                              ? 'bg-indigo-100 border-indigo-500 text-indigo-800'
+                              : isAvailable
+                              ? 'bg-green-50 border-green-300 text-green-800'
+                              : 'bg-gray-50 border-gray-300 text-gray-700'
+                          }`}
+                        >
+                          <span className="font-semibold">Section {section}</span>
+                          {assignedClass && (
+                            <span className="ml-2 text-xs opacity-75">
+                              ({assignedClass.facultyName})
+                            </span>
+                          )}
+                          {isSelected && !assignedClass && (
+                            <svg className="w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {getFilteredAvailableClasses().length === 0 && (
-                    <p className="text-sm text-red-600">No available sections for this combination</p>
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-green-300"></div>
+                      <span className="text-gray-700">Available</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                      <span className="text-gray-700">Assigned</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                      <span className="text-gray-700">Your Selection</span>
+                    </div>
+                  </div>
+                  {assignedClasses.find(
+                    cls => cls.batch === formData.batch && 
+                           cls.year === formData.year && 
+                           cls.semester === parseInt(formData.semester) && 
+                           cls.section === formData.section
+                  ) && (
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <p className="text-xs text-blue-800">
+                        ⚠️ This section is already assigned. Proceeding will replace the current advisor.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}

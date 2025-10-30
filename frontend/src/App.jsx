@@ -13,6 +13,10 @@ import AttendanceManagement from './pages/AttendanceManagement';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
 import SemesterDetailPage from './pages/SemesterDetailPage';
 import StudentReportsPage from './pages/StudentReportsPage';
+import DepartmentAnalytics from './pages/DepartmentAnalytics';
+import AttendancePolicyManagement from './pages/AttendancePolicyManagement';
+import DefaultersList from './pages/DefaultersList';
+import NotificationManagement from './pages/NotificationManagement';
 import ClassManagementPage from './pages/ClassManagementPage';
 import ClassSelectionPage from './pages/ClassSelectionPage';
 import AssignedBatchesPage from './pages/AssignedBatchesPage';
@@ -63,6 +67,38 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['hod', 'admin', 'principal']}>
                   <StudentReportsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/hod/analytics" 
+              element={
+                <ProtectedRoute allowedRoles={['hod', 'admin', 'principal']}>
+                  <DepartmentAnalytics />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/hod/policy" 
+              element={
+                <ProtectedRoute allowedRoles={['hod', 'admin', 'principal']}>
+                  <AttendancePolicyManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/hod/defaulters" 
+              element={
+                <ProtectedRoute allowedRoles={['hod', 'admin', 'principal']}>
+                  <DefaultersList />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/hod/notifications" 
+              element={
+                <ProtectedRoute allowedRoles={['hod', 'admin', 'principal']}>
+                  <NotificationManagement />
                 </ProtectedRoute>
               } 
             />

@@ -31,12 +31,15 @@ export const apiFetch = async (options) => {
         if (newAccess) {
           localStorage.setItem('accessToken', newAccess);
           axios.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
-          // retry
+          // Update headers with new token before retry
+          headers.Authorization = `Bearer ${newAccess}`;
+          // retry with updated headers
           const retry = await axios({ url, method, data, params, headers, responseType });
           return retry;
         }
       } catch (e) {
-        // fallthrough; let caller handle
+        // If refresh fails, just throw the original error
+        console.error('Token refresh failed:', e);
       }
     }
     throw error;
