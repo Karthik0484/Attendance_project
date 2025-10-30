@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import CreateUserModal from '../../components/CreateUserModal';
 import FacultyList from '../../components/FacultyList';
+import Footer from '../../components/Footer';
 
 const HODDashboard = () => {
   const { user, logout } = useAuth();
@@ -190,6 +191,9 @@ const HODDashboard = () => {
           />
         </div>
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Create Faculty Modal */}
       <CreateUserModal

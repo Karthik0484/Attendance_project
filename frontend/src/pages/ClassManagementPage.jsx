@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Toast from '../components/Toast';
 import { apiFetch } from '../utils/apiFetch';
 import EnhancedFacultyNavbar from '../components/EnhancedFacultyNavbar';
+import Footer from '../components/Footer';
 
 const ClassManagementPage = () => {
   const { user, logout } = useAuth();
@@ -249,6 +250,9 @@ const ClassManagementPage = () => {
       </main>
 
       {/* Toast Notifications */}
+      {/* Footer */}
+      <Footer />
+
       {toast.show && (
         <Toast
           message={toast.message}

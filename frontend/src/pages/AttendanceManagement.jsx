@@ -12,6 +12,7 @@ import AttendanceHistory from '../components/AttendanceHistory';
 import AttendanceReports from '../components/AttendanceReports';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Toast from '../components/Toast';
+import Footer from '../components/Footer';
 
 const AttendanceManagement = () => {
   const navigate = useNavigate();
@@ -214,6 +215,9 @@ const AttendanceManagement = () => {
       </div>
 
       {/* Toast */}
+      {/* Footer */}
+      <Footer />
+
       <Toast
         show={toast.show}
         message={toast.message}

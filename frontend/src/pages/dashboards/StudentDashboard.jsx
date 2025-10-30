@@ -2,6 +2,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useEffect, useState } from 'react';
 import SemesterCard from '../../components/SemesterCard';
 import HolidayNotificationCard from '../../components/HolidayNotificationCard';
+import Footer from '../../components/Footer';
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
@@ -209,6 +210,9 @@ const StudentDashboard = () => {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };

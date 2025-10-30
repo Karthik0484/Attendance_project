@@ -7,6 +7,7 @@ import AddStudentModal from '../components/AddStudentModal';
 import EditStudentModal from '../components/EditStudentModal';
 import BulkUploadModal from '../components/BulkUploadModal';
 import ClassHolidayCard from '../components/ClassHolidayCard';
+import Footer from '../components/Footer';
 
 const StudentManagementPage = () => {
   const { user } = useAuth();
@@ -529,6 +530,9 @@ const StudentManagementPage = () => {
           classInfo={{ batch, year, semester, section: 'A', department }}
         />
       )}
+
+      {/* Footer */}
+      <Footer />
 
       {/* Toast Notification */}
       {toast.show && (

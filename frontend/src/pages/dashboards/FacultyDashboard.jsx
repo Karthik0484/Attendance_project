@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../utils/apiFetch';
 import AbsenceReasonReviewCard from '../../components/AbsenceReasonReviewCard';
 import EnhancedFacultyNavbar from '../../components/EnhancedFacultyNavbar';
+import Footer from '../../components/Footer';
 
 const FacultyDashboard = () => {
   const { user, logout } = useAuth();
@@ -224,6 +225,9 @@ const FacultyDashboard = () => {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };
