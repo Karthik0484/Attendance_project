@@ -3,6 +3,14 @@ import { body, validationResult } from 'express-validator';
 import User from '../models/User.js';
 import { authenticate, generateTokens, verifyToken } from '../middleware/auth.js';
 import config from '../config/config.js';
+import upload from '../middleware/upload.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const router = express.Router();
 
@@ -161,7 +169,11 @@ router.get('/me', authenticate, async (req, res) => {
         assignedClasses: req.user.assignedClasses,
         status: req.user.status,
         lastLogin: req.user.lastLogin,
-        createdAt: req.user.createdAt
+        createdAt: req.user.createdAt,
+        mobile: req.user.mobile,
+        phone: req.user.phone,
+        address: req.user.address,
+        profileImage: req.user.profileImage
       }
     });
   } catch (error) {
@@ -386,6 +398,176 @@ router.post('/users/create', authenticate, [
     res.status(500).json({
       success: false,
       msg: 'Server error'
+    });
+  }
+});
+
+// @desc    Update user profile (for HOD and other roles)
+// @route   PUT /api/auth/me/update
+// @access  Private
+router.put('/me/update', authenticate, [
+  body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
+  body('phone').optional().matches(/^[0-9]{10}$/).withMessage('Phone must be 10 digits'),
+  body('mobile').optional().matches(/^[0-9]{10}$/).withMessage('Mobile must be 10 digits'),
+  body('address').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const userId = req.user._id;
+    const { name, phone, mobile, address } = req.body;
+    
+    // Find user
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update allowed fields only
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (mobile) user.mobile = mobile; // Also update mobile field
+    if (address) user.address = address;
+
+    await user.save();
+
+    console.log(`✅ Updated profile for user ${user.name} (${user.role})`);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || user.mobile,
+        address: user.address
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating user profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile'
+    });
+  }
+});
+
+// @desc    Upload user profile photo (for HOD and other roles)
+// @route   POST /api/auth/me/photo
+// @access  Private
+router.post('/me/photo', authenticate, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No photo file provided'
+      });
+    }
+
+    const userId = req.user._id;
+    
+    // Find user
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      // Delete uploaded file if user not found
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Delete old photo if exists
+    if (user.profileImage) {
+      const oldPhotoPath = path.join(__dirname, '../uploads/profiles', path.basename(user.profileImage));
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+
+    // Save new photo path
+    user.profileImage = `/uploads/profiles/${req.file.filename}`;
+    await user.save();
+
+    console.log(`✅ Uploaded profile photo for user ${user.name} (${user.role})`);
+
+    res.json({
+      success: true,
+      message: 'Profile photo uploaded successfully',
+      data: {
+        profilePhoto: user.profileImage
+      }
+    });
+
+  } catch (error) {
+    // Clean up uploaded file on error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error('❌ Error uploading profile photo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload profile photo'
+    });
+  }
+});
+
+// @desc    Delete user profile photo (for HOD and other roles)
+// @route   DELETE /api/auth/me/photo
+// @access  Private
+router.delete('/me/photo', authenticate, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find user
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Delete photo file if exists
+    if (user.profileImage) {
+      const photoPath = path.join(__dirname, '../uploads/profiles', path.basename(user.profileImage));
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+        console.log(`🗑️ Deleted photo file: ${photoPath}`);
+      }
+    }
+
+    // Remove photo reference from database
+    user.profileImage = null;
+    await user.save();
+
+    console.log(`✅ Removed profile photo for user ${user.name} (${user.role})`);
+
+    res.json({
+      success: true,
+      message: 'Profile photo deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting profile photo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete profile photo'
     });
   }
 });

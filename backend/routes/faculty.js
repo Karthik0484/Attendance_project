@@ -244,10 +244,31 @@ router.get('/hod/dashboard-stats', hodAndAbove, async (req, res) => {
       }
     }
 
+    // 4. Get today's attendance - count students present today
+    const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    let studentsPresentToday = 0;
+    
+    const todayAttendance = await Attendance.findOne({
+      department: department,
+      date: today
+    });
+
+    if (todayAttendance) {
+      if (todayAttendance.totalPresent !== undefined) {
+        studentsPresentToday = todayAttendance.totalPresent || 0;
+      } else if (todayAttendance.records && Array.isArray(todayAttendance.records)) {
+        // Count from records array
+        studentsPresentToday = todayAttendance.records.filter(
+          record => record.status && record.status.toLowerCase() === 'present'
+        ).length;
+      }
+    }
+
     console.log('✅ HOD dashboard stats:', {
       totalStudents,
       totalFaculty,
       avgAttendance: `${avgAttendance}%`,
+      studentsPresentToday,
       attendanceRecordsFound: attendanceRecords.length
     });
 
@@ -257,6 +278,7 @@ router.get('/hod/dashboard-stats', hodAndAbove, async (req, res) => {
         totalStudents,
         totalFaculty,
         avgAttendance: parseFloat(avgAttendance),
+        studentsPresentToday,
         department
       }
     });

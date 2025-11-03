@@ -5,16 +5,18 @@ import { apiFetch } from '../../utils/apiFetch';
 import CreateUserModal from '../../components/CreateUserModal';
 import FacultyList from '../../components/FacultyList';
 import Footer from '../../components/Footer';
+import EnhancedHODNavbar from '../../components/EnhancedHODNavbar';
 
 const HODDashboard = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [showCreateFacultyModal, setShowCreateFacultyModal] = useState(false);
   const [facultyRefreshTrigger, setFacultyRefreshTrigger] = useState(0);
   const [dashboardStats, setDashboardStats] = useState({
     totalStudents: 0,
     totalFaculty: 0,
-    avgAttendance: 0
+    avgAttendance: 0,
+    studentsPresentToday: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -48,36 +50,11 @@ const HODDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">🧑‍🏫</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">
-                  HOD Dashboard
-                </h1>
-                <p className="text-sm text-gray-600">
-                  Welcome, <span className="font-semibold text-gray-800">{user?.name}</span> | 
-                  <span className="text-indigo-600 font-medium ml-1">{user?.department} Department</span>
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="bg-rose-100 text-rose-700 px-5 py-2 rounded-lg hover:bg-rose-200 transition-colors font-medium text-sm"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Enhanced Navbar */}
+      <EnhancedHODNavbar />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-28">
         {/* Page Title */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-800">Overview</h2>
@@ -173,7 +150,19 @@ const HODDashboard = () => {
               </p>
             )}
             <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-xs text-gray-500">Overall average rate</p>
+              <p className="text-xs text-gray-500 mb-2">Overall average rate</p>
+              <p className="text-sm font-semibold text-gray-700">
+                {statsLoading ? (
+                  <span className="text-gray-400">Loading...</span>
+                ) : (
+                  <>
+                    <span className="text-lg font-bold text-indigo-600">
+                      {dashboardStats.studentsPresentToday || 0}/{dashboardStats.totalStudents || 0}
+                    </span>
+                    <span className="text-gray-600 ml-1">students present today</span>
+                  </>
+                )}
+              </p>
             </div>
           </div>
         </div>

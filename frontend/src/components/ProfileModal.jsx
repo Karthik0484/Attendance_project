@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
 
@@ -10,10 +10,12 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
   usePreventBodyScroll(!!profileData);
   
   const modalContentRef = useRef(null);
+  const isHOD = profileData?.role === 'Head of Department';
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: profileData?.name || '',
     phone: profileData?.phone || '',
+    mobile: profileData?.phone || '', // For HOD, also send mobile field
     address: profileData?.address || ''
   });
   const [loading, setLoading] = useState(false);
@@ -22,6 +24,19 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
   const [success, setSuccess] = useState('');
   const [photoPreview, setPhotoPreview] = useState(profileData?.profilePhoto ? `http://localhost:5000${profileData.profilePhoto}` : null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Update formData and photoPreview when profileData changes
+  useEffect(() => {
+    if (profileData) {
+      setFormData({
+        name: profileData.name || '',
+        phone: profileData.phone || '',
+        mobile: profileData.phone || '',
+        address: profileData.address || ''
+      });
+      setPhotoPreview(profileData.profilePhoto ? `http://localhost:5000${profileData.profilePhoto}` : null);
+    }
+  }, [profileData]);
 
   const handleInputChange = (e) => {
     setFormData({
@@ -55,7 +70,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
       formDataObj.append('photo', file);
 
       const response = await apiFetch({
-        url: '/api/faculty/me/photo',
+        url: isHOD ? '/api/auth/me/photo' : '/api/faculty/me/photo',
         method: 'POST',
         data: formDataObj,
         headers: {
@@ -65,7 +80,8 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
 
       if (response.data.success) {
         setSuccess('Profile photo uploaded successfully!');
-        setPhotoPreview(`http://localhost:5000${response.data.data.profilePhoto}`);
+        const photoPath = isHOD ? response.data.data.profilePhoto : response.data.data.profilePhoto;
+        setPhotoPreview(`http://localhost:5000${photoPath}`);
         // Update parent component data without closing modal
         onUpdate();
         // Scroll to top of modal to show success message
@@ -94,7 +110,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
 
     try {
       const response = await apiFetch({
-        url: '/api/faculty/me/photo',
+        url: isHOD ? '/api/auth/me/photo' : '/api/faculty/me/photo',
         method: 'DELETE'
       });
 
@@ -128,10 +144,15 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
     setSuccess('');
 
     try {
+      // For HOD, send mobile field instead of just phone
+      const updateData = isHOD 
+        ? { name: formData.name, phone: formData.phone, mobile: formData.phone, address: formData.address }
+        : formData;
+      
       const response = await apiFetch({
-        url: '/api/faculty/me/update',
+        url: isHOD ? '/api/auth/me/update' : '/api/faculty/me/update',
         method: 'PUT',
-        data: formData
+        data: updateData
       });
 
       if (response.data.success) {
@@ -163,7 +184,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Faculty Profile</h2>
+            <h2 className="text-2xl font-bold">{profileData?.role === 'Head of Department' ? 'HOD Profile' : 'Faculty Profile'}</h2>
             <button
               onClick={onClose}
               className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
@@ -260,7 +281,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
               <div>
                 <h3 className="text-xl font-bold text-gray-900">{profileData?.name}</h3>
                 <p className="text-gray-600">{profileData?.role}</p>
-                <p className="text-sm text-gray-500">Faculty ID: {profileData?.facultyId}</p>
+                <p className="text-sm text-gray-500">{profileData?.role === 'Head of Department' ? 'HOD ID' : 'Faculty ID'}: {profileData?.facultyId}</p>
                 <p className="text-xs text-blue-600 mt-1">
                   {photoPreview ? 'Hover on photo to delete • Click camera to change' : 'Click camera icon to upload photo'}
                 </p>
@@ -343,20 +364,39 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
               {/* Summary Stats */}
               {summary && (
                 <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Teaching Summary</h4>
+                  <h4 className="font-semibold text-gray-900 mb-3">{profileData?.role === 'Head of Department' ? 'Department Overview' : 'Teaching Summary'}</h4>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-blue-600">{summary.totalClasses}</p>
-                      <p className="text-sm text-gray-600 mt-1">Assigned Classes</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-green-600">{summary.totalStudents}</p>
-                      <p className="text-sm text-gray-600 mt-1">Total Students</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-3xl font-bold text-purple-600">{summary.activeSemesters?.length || 0}</p>
-                      <p className="text-sm text-gray-600 mt-1">Active Semesters</p>
-                    </div>
+                    {profileData?.role === 'Head of Department' ? (
+                      <>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-blue-600">{summary.totalFaculty}</p>
+                          <p className="text-sm text-gray-600 mt-1">Faculty Members</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-green-600">{summary.totalStudents}</p>
+                          <p className="text-sm text-gray-600 mt-1">Total Students</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-purple-600">{summary.totalClasses || 0}</p>
+                          <p className="text-sm text-gray-600 mt-1">Classes</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-blue-600">{summary.totalClasses}</p>
+                          <p className="text-sm text-gray-600 mt-1">Assigned Classes</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-green-600">{summary.totalStudents}</p>
+                          <p className="text-sm text-gray-600 mt-1">Total Students</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold text-purple-600">{summary.activeSemesters?.length || 0}</p>
+                          <p className="text-sm text-gray-600 mt-1">Active Semesters</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -372,6 +412,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
                         setFormData({
                           name: profileData?.name || '',
                           phone: profileData?.phone || '',
+                          mobile: profileData?.phone || '',
                           address: profileData?.address || ''
                         });
                         setError('');

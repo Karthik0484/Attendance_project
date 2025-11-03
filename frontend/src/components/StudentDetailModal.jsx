@@ -66,6 +66,16 @@ const StudentDetailModal = ({ student, onClose }) => {
     }
   };
 
+  const formatDateDDMMYYYY = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -144,7 +154,7 @@ const StudentDetailModal = ({ student, onClose }) => {
                     <div>
                       <span className="text-yellow-700 font-medium">Last Attendance:</span>
                       <span className="ml-2 font-bold text-yellow-900">
-                        {data.insights.lastAttendanceDate ? new Date(data.insights.lastAttendanceDate).toLocaleDateString() : 'N/A'}
+                        {formatDateDDMMYYYY(data.insights.lastAttendanceDate)}
                       </span>
                     </div>
                   </div>
@@ -214,7 +224,7 @@ const StudentDetailModal = ({ student, onClose }) => {
                       {data.records.map((record, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(record.date).toLocaleDateString()}
+                            {formatDateDDMMYYYY(record.date)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {record.classId}
