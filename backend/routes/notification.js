@@ -10,14 +10,16 @@ router.use(authenticate);
 
 // @desc    Get notifications for a user (supports both old facultyId and new userId)
 // @route   GET /api/notifications
-// @access  Faculty and above
-router.get('/', facultyAndAbove, async (req, res) => {
+// @access  Authenticated users (faculty, students, etc.)
+router.get('/', async (req, res) => {
   try {
     const { unread, type, limit = 10, page = 1 } = req.query;
     const userId = req.user._id;
 
-    // Try to get faculty record (for old notifications)
-    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    // Try to get faculty record (for old notifications) - only for faculty users
+    const faculty = req.user.role !== 'student' 
+      ? await Faculty.findOne({ userId, status: 'active' })
+      : null;
 
     // Build query - support both old (facultyId) and new (userId) notifications
     const query = {
@@ -43,7 +45,7 @@ router.get('/', facultyAndAbove, async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip(skip)
-        .populate('sentBy', 'name')
+        .populate('sentBy', 'name role')
         .lean(),
       Notification.countDocuments(query)
     ]);
@@ -82,11 +84,13 @@ router.get('/', facultyAndAbove, async (req, res) => {
 
 // @desc    Get unread count
 // @route   GET /api/notifications/unread-count
-// @access  Faculty and above
-router.get('/unread-count', facultyAndAbove, async (req, res) => {
+// @access  Authenticated users (faculty, students, etc.)
+router.get('/unread-count', async (req, res) => {
   try {
     const userId = req.user._id;
-    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    const faculty = req.user.role !== 'student' 
+      ? await Faculty.findOne({ userId, status: 'active' })
+      : null;
 
     // Build query for both old and new notification systems
     const query = {
@@ -115,12 +119,14 @@ router.get('/unread-count', facultyAndAbove, async (req, res) => {
 
 // @desc    Mark notification as read
 // @route   PATCH /api/notifications/:id/read
-// @access  Faculty and above
-router.patch('/:id/read', facultyAndAbove, async (req, res) => {
+// @access  Authenticated users (faculty, students, etc.)
+router.patch('/:id/read', async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
-    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    const faculty = req.user.role !== 'student' 
+      ? await Faculty.findOne({ userId, status: 'active' })
+      : null;
 
     // Find notification that belongs to this user (either by userId or facultyId)
     const notification = await Notification.findOneAndUpdate(
@@ -160,11 +166,13 @@ router.patch('/:id/read', facultyAndAbove, async (req, res) => {
 
 // @desc    Mark all notifications as read
 // @route   PATCH /api/notifications/mark-all-read
-// @access  Faculty and above
-router.patch('/mark-all-read', facultyAndAbove, async (req, res) => {
+// @access  Authenticated users (faculty, students, etc.)
+router.patch('/mark-all-read', async (req, res) => {
   try {
     const userId = req.user._id;
-    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    const faculty = req.user.role !== 'student' 
+      ? await Faculty.findOne({ userId, status: 'active' })
+      : null;
 
     // Update all notifications for this user (both old and new systems)
     await Notification.updateMany(
@@ -196,12 +204,14 @@ router.patch('/mark-all-read', facultyAndAbove, async (req, res) => {
 
 // @desc    Delete notification
 // @route   DELETE /api/notifications/:id
-// @access  Faculty and above
-router.delete('/:id', facultyAndAbove, async (req, res) => {
+// @access  Authenticated users (faculty, students, etc.)
+router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
-    const faculty = await Faculty.findOne({ userId, status: 'active' });
+    const faculty = req.user.role !== 'student' 
+      ? await Faculty.findOne({ userId, status: 'active' })
+      : null;
 
     const notification = await Notification.findOneAndDelete({
       _id: id,

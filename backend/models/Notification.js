@@ -61,6 +61,39 @@ const notificationSchema = new mongoose.Schema({
     ref: 'User',
     required: false
   },
+  // Broadcast ID - groups notifications sent together in one action
+  broadcastId: {
+    type: String,
+    required: false,
+    index: true
+  },
+  // Notification Status (for sender's view)
+  status: {
+    type: String,
+    enum: ['draft', 'scheduled', 'sent', 'recalled'],
+    default: 'sent',
+    index: true
+  },
+  // Archive flag (for sender's history management)
+  isArchived: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  // Scheduled send time (for scheduled notifications)
+  scheduledFor: {
+    type: Date,
+    default: null
+  },
+  // Recall information
+  recallInfo: {
+    recalledAt: Date,
+    recallReason: String,
+    recalledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -90,6 +123,8 @@ notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, type: 1, createdAt: -1 });
 notificationSchema.index({ department: 1, createdAt: -1 });
 notificationSchema.index({ sentBy: 1, createdAt: -1 });
+notificationSchema.index({ sentBy: 1, status: 1, isArchived: 1 }); // For sender's notification management
+notificationSchema.index({ broadcastId: 1 }); // For grouping broadcast notifications
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // Auto-delete expired notifications
 
 // Static method to create notification

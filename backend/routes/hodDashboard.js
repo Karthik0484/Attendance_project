@@ -748,6 +748,9 @@ router.post('/notifications', authenticate, hodAndAbove, async (req, res) => {
 
     const recipients = await User.find(recipientQuery).select('_id').lean();
 
+    // Generate a unique broadcast ID for this batch
+    const broadcastId = `${req.user._id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     // Create notifications for all recipients
     const notifications = recipients.map(recipient => ({
       userId: recipient._id,
@@ -756,7 +759,14 @@ router.post('/notifications', authenticate, hodAndAbove, async (req, res) => {
       message,
       department,
       sentBy: req.user._id,
-      read: false
+      broadcastId, // Same ID for all notifications in this broadcast
+      status: 'sent', // Mark as sent
+      read: false,
+      // Store metadata about the broadcast
+      metadata: {
+        targetRole: targetRole || 'all',
+        sentToCount: recipients.length
+      }
     }));
 
     await Notification.insertMany(notifications);
@@ -782,28 +792,91 @@ router.post('/notifications', authenticate, hodAndAbove, async (req, res) => {
   }
 });
 
-// @desc    Get sent notifications history
+// @desc    Get sent notifications history (grouped by broadcast)
 // @route   GET /api/hod/notifications/history
 // @access  HOD and above
 router.get('/notifications/history', authenticate, hodAndAbove, async (req, res) => {
   try {
     const department = req.user.department;
-    const { limit = 50, page = 1 } = req.query;
+    const { limit = 50, page = 1, includeArchived = 'false' } = req.query;
 
-    const notifications = await Notification.find({
+    // Build match query - by default exclude archived notifications
+    const matchQuery = {
       department,
       sentBy: req.user._id
-    })
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .populate('sentBy', 'name')
-      .lean();
+    };
 
-    const total = await Notification.countDocuments({
-      department,
-      sentBy: req.user._id
-    });
+    if (includeArchived !== 'true') {
+      matchQuery.isArchived = { $ne: true };
+    }
+
+    // Aggregate notifications to group by broadcastId
+    const notifications = await Notification.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: '$broadcastId', // Group by broadcastId (unique per send action)
+          // Take the first notification's ID for actions (archive, recall, etc.)
+          notificationId: { $first: '$_id' },
+          title: { $first: '$title' },
+          message: { $first: '$message' },
+          type: { $first: '$type' },
+          status: { $first: '$status' },
+          createdAt: { $first: '$createdAt' },
+          isArchived: { $first: '$isArchived' },
+          recallInfo: { $first: '$recallInfo' },
+          sentBy: { $first: '$sentBy' },
+          broadcastId: { $first: '$broadcastId' },
+          metadata: { $first: '$metadata' },
+          // Count total recipients
+          recipientCount: { $sum: 1 },
+          // Collect all recipient IDs
+          recipientIds: { $push: '$userId' }
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: (parseInt(page) - 1) * parseInt(limit) },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'sentBy',
+          foreignField: '_id',
+          as: 'sentByUser'
+        }
+      },
+      {
+        $project: {
+          _id: '$notificationId', // Use the first notification's ID
+          title: 1,
+          message: 1,
+          type: 1,
+          status: 1,
+          createdAt: 1,
+          isArchived: 1,
+          recallInfo: 1,
+          recipientCount: 1,
+          metadata: 1,
+          sentBy: {
+            _id: { $arrayElemAt: ['$sentByUser._id', 0] },
+            name: { $arrayElemAt: ['$sentByUser.name', 0] }
+          }
+        }
+      }
+    ]);
+
+    // Get total count of unique broadcasts
+    const totalAgg = await Notification.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: '$broadcastId' // Group by broadcastId
+        }
+      },
+      { $count: 'total' }
+    ]);
+
+    const total = totalAgg.length > 0 ? totalAgg[0].total : 0;
 
     res.json({
       success: true,
@@ -823,6 +896,206 @@ router.get('/notifications/history', authenticate, hodAndAbove, async (req, res)
     res.status(500).json({
       success: false,
       message: 'Error fetching notification history',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Archive a sent notification (soft delete)
+// @route   PUT /api/hod/notifications/:id/archive
+// @access  HOD and above
+router.put('/notifications/:id/archive', authenticate, hodAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find notification and verify ownership
+    const notification = await Notification.findOne({
+      _id: id,
+      sentBy: req.user._id
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found or you do not have permission to archive it'
+      });
+    }
+
+    // Only sent and recalled notifications can be archived
+    if (notification.status !== 'sent' && notification.status !== 'recalled') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot archive ${notification.status} notifications. Only sent or recalled notifications can be archived.`
+      });
+    }
+
+    // Archive all notifications in this broadcast
+    const result = await Notification.updateMany(
+      { broadcastId: notification.broadcastId },
+      { isArchived: true }
+    );
+
+    console.log('📦 Archived', result.modifiedCount, 'notification(s) with broadcastId:', notification.broadcastId);
+
+    res.json({
+      success: true,
+      message: `Notification archived successfully (${result.modifiedCount} recipient${result.modifiedCount !== 1 ? 's' : ''})`,
+      data: { 
+        notificationId: id,
+        archivedCount: result.modifiedCount
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error archiving notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error archiving notification',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Delete a draft or scheduled notification (permanent delete)
+// @route   DELETE /api/hod/notifications/:id
+// @access  HOD and above
+router.delete('/notifications/:id', authenticate, hodAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find notification and verify ownership
+    const notification = await Notification.findOne({
+      _id: id,
+      sentBy: req.user._id
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found or you do not have permission to delete it'
+      });
+    }
+
+    // Only draft and scheduled notifications can be permanently deleted
+    if (notification.status !== 'draft' && notification.status !== 'scheduled') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete ${notification.status} notifications. Only draft or scheduled notifications can be permanently deleted. Use archive for sent notifications.`
+      });
+    }
+
+    // Delete all notifications in this broadcast
+    const result = await Notification.deleteMany({ 
+      broadcastId: notification.broadcastId 
+    });
+
+    console.log('🗑️ Deleted', result.deletedCount, 'notification(s) with broadcastId:', notification.broadcastId);
+
+    res.json({
+      success: true,
+      message: `Notification deleted successfully (${result.deletedCount} recipient${result.deletedCount !== 1 ? 's' : ''})`,
+      data: { 
+        notificationId: id,
+        deletedCount: result.deletedCount
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting notification',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Recall a sent notification
+// @route   POST /api/hod/notifications/:id/recall
+// @access  HOD and above
+router.post('/notifications/:id/recall', authenticate, hodAndAbove, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    // Find the original notification (one of the sent copies)
+    const originalNotification = await Notification.findOne({
+      _id: id,
+      sentBy: req.user._id
+    });
+
+    if (!originalNotification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found or you do not have permission to recall it'
+      });
+    }
+
+    // Only sent notifications can be recalled
+    if (originalNotification.status !== 'sent') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot recall ${originalNotification.status} notifications. Only sent notifications can be recalled.`
+      });
+    }
+
+    // Find all copies of this notification using broadcastId
+    const allCopies = await Notification.find({
+      broadcastId: originalNotification.broadcastId,
+      status: 'sent'
+    });
+
+    // Update all copies to recalled status
+    const recallInfo = {
+      recalledAt: new Date(),
+      recallReason: reason || 'Recalled by sender',
+      recalledBy: req.user._id
+    };
+
+    await Notification.updateMany(
+      {
+        _id: { $in: allCopies.map(n => n._id) }
+      },
+      {
+        status: 'recalled',
+        recallInfo
+      }
+    );
+
+    // Generate a new broadcast ID for the recall notifications
+    const recallBroadcastId = `${req.user._id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Send recall notification to all recipients
+    const recallNotifications = allCopies.map(copy => ({
+      userId: copy.userId,
+      type: 'system',
+      title: '⚠️ Notification Recalled',
+      message: `The notification "${originalNotification.title}" has been recalled by the sender.\nReason: ${reason || 'Not specified'}`,
+      department: originalNotification.department,
+      sentBy: req.user._id,
+      broadcastId: recallBroadcastId, // Same broadcast ID for all recall notifications
+      status: 'sent',
+      read: false
+    }));
+
+    await Notification.insertMany(recallNotifications);
+
+    console.log('🔄 Recalled notification and sent', recallNotifications.length, 'recall notices');
+
+    res.json({
+      success: true,
+      message: `Notification recalled successfully. ${recallNotifications.length} recipient(s) notified.`,
+      data: {
+        recalledCount: allCopies.length,
+        notificationsSent: recallNotifications.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error recalling notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error recalling notification',
       error: error.message
     });
   }

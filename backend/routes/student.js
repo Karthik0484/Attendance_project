@@ -1366,22 +1366,33 @@ router.get('/classes/test', authenticate, facultyAndAbove, (req, res) => {
   });
 });
 
-// @desc    Get detailed student profile for faculty
+// @desc    Get detailed student profile for faculty or student
 // @route   GET /api/students/:id/profile-detailed
-// @access  Faculty and above
-router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, res) => {
+// @access  Faculty and above, or student accessing their own data
+// Note: id can be either Student _id or User _id (userId)
+router.get('/:id/profile-detailed', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { startDate, endDate } = req.query;
+    const currentUser = req.user;
     
     console.log('👤 Fetching detailed student profile for ID:', id);
-    console.log('👤 Faculty:', req.user.email, 'Department:', req.user.department);
+    console.log('👤 Current user:', currentUser.email, 'Role:', currentUser.role, 'Department:', currentUser.department);
 
-    // Get student basic info with populated data
+    // Try to find student by Student _id first
     let student = await Student.findById(id)
       .populate('userId', 'name email mobile')
       .populate('createdBy', 'name email')
       .populate('semesters.facultyId', 'name email');
+
+    // If not found by Student _id, try finding by userId (User _id)
+    if (!student) {
+      console.log('🔄 Student not found by Student _id, trying userId...');
+      student = await Student.findOne({ userId: id, status: 'active' })
+        .populate('userId', 'name email mobile')
+        .populate('createdBy', 'name email')
+        .populate('semesters.facultyId', 'name email');
+    }
 
     if (!student) {
       console.log('❌ Student not found for ID:', id);
@@ -1391,11 +1402,27 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
       });
     }
 
-    // Check department access
-    if (student.department !== req.user.department) {
+    // Authorization check
+    if (currentUser.role === 'student') {
+      // Students can only view their own profile
+      if (currentUser._id.toString() !== student.userId._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only view your own profile'
+        });
+      }
+    } else if (['faculty', 'hod', 'principal', 'admin'].includes(currentUser.role)) {
+      // Faculty and above can view students from their department
+      if (student.department !== currentUser.department) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only view students from your department.'
+        });
+      }
+    } else {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. You can only view students from your department.'
+        message: 'Access denied'
       });
     }
 
@@ -1416,11 +1443,73 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
     }
 
     // Get attendance records for the student
-    const studentUserId = student.userId._id;
-    const attendanceRecords = await Attendance.find({
-      studentId: studentUserId,
-      date: dateFilter
-    }).sort({ date: 1 });
+    // Student attendance is stored in Attendance records array with studentId field
+    console.log('🔍 Searching attendance for:', {
+      studentId: student._id.toString(),
+      department: student.department,
+      dateFilter: dateFilter
+    });
+
+    // Convert date filter to match string format if needed
+    let attendanceQuery = {
+      department: student.department,
+      'records.studentId': student._id
+    };
+
+    // Handle date filter - Attendance model uses string dates
+    if (dateFilter.$gte || dateFilter.$lte) {
+      attendanceQuery.date = {};
+      if (dateFilter.$gte) {
+        attendanceQuery.date.$gte = dateFilter.$gte instanceof Date 
+          ? dateFilter.$gte.toISOString().split('T')[0]
+          : dateFilter.$gte;
+      }
+      if (dateFilter.$lte) {
+        attendanceQuery.date.$lte = dateFilter.$lte instanceof Date
+          ? dateFilter.$lte.toISOString().split('T')[0]
+          : dateFilter.$lte;
+      }
+    }
+
+    const attendanceDocs = await Attendance.find(attendanceQuery).sort({ date: 1 });
+    console.log(`📊 Found ${attendanceDocs.length} attendance documents`);
+
+    // Extract this student's attendance from records array
+    const attendanceRecords = [];
+    attendanceDocs.forEach(doc => {
+      const studentRecord = doc.records.find(r => r.studentId.toString() === student._id.toString());
+      if (studentRecord) {
+        // Normalize status to title case
+        let normalizedStatus = 'Not Marked';
+        if (studentRecord.status) {
+          const statusLower = studentRecord.status.toLowerCase();
+          if (statusLower === 'present') {
+            normalizedStatus = 'Present';
+          } else if (statusLower === 'absent') {
+            normalizedStatus = 'Absent';
+          } else {
+            normalizedStatus = studentRecord.status;
+          }
+        }
+        
+        // Normalize date to string format
+        let recordDate = doc.date;
+        if (recordDate instanceof Date) {
+          recordDate = recordDate.toISOString().split('T')[0];
+        } else if (typeof recordDate === 'string') {
+          recordDate = recordDate.split('T')[0]; // In case it's ISO string
+        }
+        
+        attendanceRecords.push({
+          date: recordDate,
+          status: normalizedStatus,
+          reason: studentRecord.reason || null,
+          actionTaken: studentRecord.reviewStatus || null
+        });
+      }
+    });
+    
+    console.log(`✅ Extracted ${attendanceRecords.length} attendance records for student`);
 
     // Get holidays in the same date range
     const Holiday = (await import('../models/Holiday.js')).default;
@@ -1439,37 +1528,49 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
     
     const holidays = await Holiday.find({
       department: student.department,
-      holidayDate: holidayDateFilter,
-      isActive: true
-    }).select('holidayDate reason');
+      date: holidayDateFilter,
+      isActive: true,
+      isDeleted: false
+    }).select('date reason');
 
     // Create holiday dates set
     const holidayDates = new Set(holidays.map(h => 
-      typeof h.holidayDate === 'string' ? h.holidayDate : h.holidayDate.toISOString().split('T')[0]
+      typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0]
     ));
 
     // Calculate attendance statistics
     const workingDaysRecords = attendanceRecords.filter(record => {
-      const recordDate = record.date.toISOString().split('T')[0];
-      return !holidayDates.has(recordDate) && record.status !== 'Not Marked';
+      const recordDate = record.date instanceof Date 
+        ? record.date.toISOString().split('T')[0]
+        : typeof record.date === 'string' 
+          ? record.date.split('T')[0]
+          : record.date;
+      // Exclude holidays and not marked records from working days
+      return !holidayDates.has(recordDate) && record.status && record.status !== 'Not Marked' && record.status.toLowerCase() !== 'holiday';
     });
 
     const totalDays = workingDaysRecords.length;
-    const presentDays = workingDaysRecords.filter(record => record.status === 'Present').length;
-    const absentDays = workingDaysRecords.filter(record => record.status === 'Absent').length;
+    const presentDays = workingDaysRecords.filter(record => record.status && record.status.toLowerCase() === 'present').length;
+    const absentDays = workingDaysRecords.filter(record => record.status && record.status.toLowerCase() === 'absent').length;
     const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
     // Group attendance by month for calendar view
     const monthlyAttendance = {};
     
     attendanceRecords.forEach(record => {
-      const monthKey = record.date.toISOString().slice(0, 7); // YYYY-MM format
+      if (!record || !record.date) return; // Skip if record or date is undefined
+      const recordDate = record.date instanceof Date 
+        ? record.date.toISOString().split('T')[0]
+        : typeof record.date === 'string' 
+          ? record.date.split('T')[0]
+          : String(record.date);
+      const monthKey = recordDate.slice(0, 7); // YYYY-MM format
       if (!monthlyAttendance[monthKey]) {
         monthlyAttendance[monthKey] = [];
       }
       monthlyAttendance[monthKey].push({
-        date: record.date.toISOString().split('T')[0],
-        status: record.status,
+        date: recordDate,
+        status: record.status || 'Not Marked',
         reason: record.reason || '',
         actionTaken: record.actionTaken || ''
       });
@@ -1477,7 +1578,8 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
 
     // Add holidays to monthly attendance
     holidays.forEach(holiday => {
-      const holidayDateStr = typeof holiday.holidayDate === 'string' ? holiday.holidayDate : holiday.holidayDate.toISOString().split('T')[0];
+      if (!holiday || !holiday.date) return; // Skip if holiday or date is undefined
+      const holidayDateStr = typeof holiday.date === 'string' ? holiday.date : (holiday.date instanceof Date ? holiday.date.toISOString().split('T')[0] : String(holiday.date));
       const monthKey = holidayDateStr.slice(0, 7);
       if (!monthlyAttendance[monthKey]) {
         monthlyAttendance[monthKey] = [];
@@ -1485,7 +1587,7 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
       monthlyAttendance[monthKey].push({
         date: holidayDateStr,
         status: 'Holiday',
-        reason: holiday.reason,
+        reason: holiday.reason || '',
         actionTaken: ''
       });
     });
@@ -1493,7 +1595,15 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
     // Get recent attendance (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentAttendance = attendanceRecords.filter(record => record.date >= thirtyDaysAgo);
+    const recentAttendance = attendanceRecords.filter(record => {
+      if (!record || !record.date) return false; // Skip if record or date is undefined
+      const recordDate = record.date instanceof Date 
+        ? record.date
+        : typeof record.date === 'string' 
+          ? new Date(record.date)
+          : null;
+      return recordDate && !isNaN(recordDate.getTime()) && recordDate >= thirtyDaysAgo;
+    });
 
     // Prepare response
     const response = {
@@ -1536,15 +1646,22 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
         // Monthly attendance data for calendar
         monthlyAttendance,
         // Recent attendance for quick view
-        recentAttendance: recentAttendance.map(record => ({
-          date: record.date.toISOString().split('T')[0],
-          status: record.status,
-          reason: record.reason || '',
-          actionTaken: record.actionTaken || ''
-        })),
+        recentAttendance: recentAttendance.map(record => {
+          const recordDate = record.date instanceof Date 
+            ? record.date.toISOString().split('T')[0]
+            : typeof record.date === 'string' 
+              ? record.date.split('T')[0]
+              : record.date;
+          return {
+            date: recordDate,
+            status: record.status,
+            reason: record.reason || '',
+            actionTaken: record.actionTaken || ''
+          };
+        }),
         // Holidays
         holidays: holidays.map(holiday => ({
-          date: typeof holiday.holidayDate === 'string' ? holiday.holidayDate : holiday.holidayDate.toISOString().split('T')[0],
+          date: typeof holiday.date === 'string' ? holiday.date : holiday.date.toISOString().split('T')[0],
           reason: holiday.reason
         }))
       }
@@ -1558,6 +1675,126 @@ router.get('/:id/profile-detailed', authenticate, facultyAndAbove, async (req, r
     res.status(500).json({ 
       success: false, 
       message: 'Failed to fetch student profile' 
+    });
+  }
+});
+
+// @desc    Update student's own information (students can update their own profile)
+// @route   PUT /api/students/self/update
+// @access  Student (own data)
+router.put('/self/update', authenticate, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    
+    if (currentUser.role !== 'student') {
+      return res.status(403).json({
+        success: false,
+        message: 'This route is only accessible to students'
+      });
+    }
+
+    // Find student by userId
+    const student = await Student.findOne({ userId: currentUser._id, status: 'active' });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student profile not found'
+      });
+    }
+
+    // Validate input
+    const { mobile, parentContact, address, dateOfBirth, emergencyContact } = req.body;
+    const errors = {};
+
+    if (mobile && !/^[0-9]{10}$/.test(mobile)) {
+      errors.mobile = 'Mobile must be exactly 10 digits';
+    }
+
+    if (parentContact && !/^[0-9]{10}$/.test(parentContact)) {
+      errors.parentContact = 'Parent contact must be exactly 10 digits';
+    }
+
+    if (address && address.trim().length < 5) {
+      errors.address = 'Address must be at least 5 characters';
+    }
+
+    if (dateOfBirth && isNaN(new Date(dateOfBirth).getTime())) {
+      errors.dateOfBirth = 'Invalid date format';
+    }
+
+    if (emergencyContact && typeof emergencyContact === 'object') {
+      if (emergencyContact.phone && !/^[0-9]{10}$/.test(emergencyContact.phone)) {
+        errors.emergencyContact = 'Emergency contact phone must be exactly 10 digits';
+      }
+    } else if (emergencyContact && !/^[0-9]{10}$/.test(emergencyContact)) {
+      errors.emergencyContact = 'Emergency contact must be exactly 10 digits';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors
+      });
+    }
+
+    // Prepare allowed update fields (students can only update certain fields)
+    const updateData = {};
+    if (mobile) updateData.mobile = mobile;
+    if (parentContact) updateData.parentContact = parentContact;
+    if (address) updateData.address = address.trim();
+    if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
+    if (emergencyContact) {
+      if (typeof emergencyContact === 'object') {
+        updateData.emergencyContact = emergencyContact;
+      } else {
+        // If it's just a phone number string, convert to object format
+        updateData.emergencyContact = { phone: emergencyContact };
+      }
+    }
+
+    // Update student record
+    const updatedStudent = await Student.findByIdAndUpdate(
+      student._id,
+      { ...updateData, updatedAt: new Date() },
+      { new: true }
+    ).populate('userId', 'name email mobile');
+
+    // Update user record if mobile changed
+    if (mobile) {
+      await User.findByIdAndUpdate(currentUser._id, {
+        mobile: mobile,
+        updatedAt: new Date()
+      });
+    }
+
+    console.log('✅ Student self-updated successfully:', {
+      studentId: student._id,
+      updatedFields: Object.keys(updateData)
+    });
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: updatedStudent._id,
+        rollNumber: updatedStudent.rollNumber,
+        name: updatedStudent.name || updatedStudent.userId?.name,
+        email: updatedStudent.userId?.email,
+        mobile: updatedStudent.mobile || updatedStudent.userId?.mobile,
+        parentContact: updatedStudent.parentContact,
+        address: updatedStudent.address,
+        dateOfBirth: updatedStudent.dateOfBirth,
+        emergencyContact: updatedStudent.emergencyContact
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Student self-update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile'
     });
   }
 });
@@ -1907,17 +2144,27 @@ router.get('/:id', authenticate, async (req, res) => {
 // @desc    Get detailed student profile with attendance data
 // @route   GET /api/students/:id/profile
 // @access  Faculty and above, or student accessing their own data
+// Note: id can be either Student _id or User _id (userId)
 router.get('/:id/profile', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const currentUser = req.user;
 
-    console.log('🔍 Fetching profile for student ID:', id);
+    console.log('🔍 Fetching profile for ID:', id);
     console.log('👤 Current user:', currentUser.email, 'Role:', currentUser.role);
 
-    const student = await Student.findById(id)
+    // Try to find student by Student _id first
+    let student = await Student.findById(id)
       .populate('userId', 'name email mobile status')
       .populate('facultyId', 'name email');
+
+    // If not found by Student _id, try finding by userId (User _id)
+    if (!student) {
+      console.log('🔄 Student not found by Student _id, trying userId...');
+      student = await Student.findOne({ userId: id, status: 'active' })
+        .populate('userId', 'name email mobile status')
+        .populate('facultyId', 'name email');
+    }
 
     if (!student) {
       console.log('❌ Student not found for ID:', id);
