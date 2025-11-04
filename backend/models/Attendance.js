@@ -29,7 +29,7 @@ const attendanceRecordSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['present', 'absent'],
+    enum: ['present', 'absent', 'od'],
     required: true,
     default: 'present'
   },
@@ -111,6 +111,12 @@ const attendanceSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+  totalOD: {
+    type: Number,
+    required: false,
+    min: 0,
+    default: 0
+  },
   status: {
     type: String,
     enum: ['draft', 'finalized', 'modified'],
@@ -149,10 +155,12 @@ attendanceSchema.pre('save', function(next) {
     this.totalStudents = this.records.length;
     this.totalPresent = this.records.filter(record => record.status === 'present').length;
     this.totalAbsent = this.records.filter(record => record.status === 'absent').length;
+    this.totalOD = this.records.filter(record => record.status === 'od').length;
   } else {
     this.totalStudents = 0;
     this.totalPresent = 0;
     this.totalAbsent = 0;
+    this.totalOD = 0;
   }
   next();
 });
@@ -163,18 +171,21 @@ attendanceSchema.pre('validate', function(next) {
     this.totalStudents = this.records.length;
     this.totalPresent = this.records.filter(record => record.status === 'present').length;
     this.totalAbsent = this.records.filter(record => record.status === 'absent').length;
+    this.totalOD = this.records.filter(record => record.status === 'od').length;
   } else {
     this.totalStudents = 0;
     this.totalPresent = 0;
     this.totalAbsent = 0;
+    this.totalOD = 0;
   }
   next();
 });
 
-// Virtual for attendance percentage
+// Virtual for attendance percentage (OD is considered as present)
 attendanceSchema.virtual('attendancePercentage').get(function() {
   if (this.totalStudents === 0) return 0;
-  return Math.round((this.totalPresent / this.totalStudents) * 100 * 100) / 100;
+  const presentAndOD = (this.totalPresent || 0) + (this.totalOD || 0);
+  return Math.round((presentAndOD / this.totalStudents) * 100 * 100) / 100;
 });
 
 // Ensure virtual fields are included in JSON output

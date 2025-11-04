@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/apiFetch';
 import { useAuth } from '../context/AuthContext';
-import * as XLSX from 'xlsx';
+import { exportToExcelWithLogo } from '../utils/excelExport';
 
 const DefaultersList = () => {
   const { user } = useAuth();
@@ -63,28 +63,40 @@ const DefaultersList = () => {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!data || !data.defaulters || data.defaulters.length === 0) {
       alert('No data to export');
       return;
     }
 
-    const exportData = data.defaulters.map(student => ({
-      'Roll Number': student.rollNumber,
-      'Student Name': student.name,
-      'Email': student.email,
-      'Class': student.classId,
-      'Total Sessions': student.totalSessions,
-      'Attended': student.attendedSessions,
-      'Absent': student.absentSessions,
-      'Attendance %': student.attendancePercentage
-    }));
+    try {
+      const exportData = data.defaulters.map(student => ({
+        'Roll Number': student.rollNumber,
+        'Student Name': student.name,
+        'Email': student.email,
+        'Class': student.classId,
+        'Total Sessions': student.totalSessions,
+        'Present': student.attendedSessions - (student.odSessions || 0),
+        'OD': student.odSessions || 0,
+        'Present (incl. OD)': student.attendedSessions,
+        'Absent': student.absentSessions,
+        'Attendance %': student.attendancePercentage
+      }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Defaulters');
-
-    XLSX.writeFile(wb, `Defaulters_${user.department}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      await exportToExcelWithLogo(
+        exportData,
+        `Defaulters_${user.department}`,
+        'Defaulters',
+        {
+          title: 'Attendance Defaulters Report',
+          department: `${user.department} | Threshold: ${filters.threshold}%`,
+          showDate: true
+        }
+      );
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Failed to export Excel file. Please try again.');
+    }
   };
 
   const filteredDefaulters = data?.defaulters?.filter(student =>
@@ -349,7 +361,13 @@ const DefaultersList = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-green-600 font-medium">{student.attendedSessions}P</span>
+                          <span className="text-green-600 font-medium">{student.attendedSessions - (student.odSessions || 0)}P</span>
+                          {student.odSessions > 0 && (
+                            <>
+                              <span className="text-gray-400">/</span>
+                              <span className="text-blue-600 font-medium">{student.odSessions} OD</span>
+                            </>
+                          )}
                           <span className="text-gray-400">/</span>
                           <span className="text-red-600 font-medium">{student.absentSessions}A</span>
                           <span className="text-gray-400">/</span>

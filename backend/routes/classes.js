@@ -26,12 +26,86 @@ const verifyClassAccess = async (req, res, next) => {
     // HOD, Principal, and Admin can access any class in their department
     if (['hod', 'principal', 'admin'].includes(userRole)) {
       console.log('✅ [CLASS ACCESS] Admin-level access granted');
+      // For admin-level users, we still need to find the assignment
+      // Try to find by ObjectId first (if classId is a MongoDB ObjectId)
+      let assignment = null;
+      
+      // Check if classId is a valid MongoDB ObjectId (24 hex characters)
+      if (mongoose.Types.ObjectId.isValid(classId) && classId.length === 24) {
+        assignment = await ClassAssignment.findById(classId)
+          .populate('facultyId', 'name email');
+      }
+      
+      // If not found by ObjectId, try parsing as formatted string
+      if (!assignment) {
+        const parts = classId.split('_');
+        if (parts.length === 4) {
+          const [batch, year, semesterStr, section] = parts;
+          // Parse semester number from "Sem 3" format
+          const semesterMatch = semesterStr.match(/\d+/);
+          const semester = semesterMatch ? parseInt(semesterMatch[0], 10) : null;
+          
+          if (semester) {
+            assignment = await ClassAssignment.findOne({
+              batch: batch,
+              year: year,
+              semester: semester,
+              section: section || 'A',
+              active: true
+            }).populate('facultyId', 'name email');
+          }
+        }
+      }
+      
+      if (assignment) {
+        req.classAssignment = assignment;
+        req.isArchivedClass = !assignment.active || assignment.status !== 'Active';
+      }
       return next();
     }
 
     // Faculty must be assigned to this class
-    const assignment = await ClassAssignment.findById(classId)
-      .populate('facultyId', 'name email');
+    // Try to find by ObjectId first (if classId is a MongoDB ObjectId)
+    let assignment = null;
+    
+    // Check if classId is a valid MongoDB ObjectId (24 hex characters)
+    if (mongoose.Types.ObjectId.isValid(classId) && classId.length === 24) {
+      assignment = await ClassAssignment.findById(classId)
+        .populate('facultyId', 'name email');
+    }
+    
+    // If not found by ObjectId, try parsing as formatted string (batch_year_semester_section)
+    if (!assignment) {
+      const parts = classId.split('_');
+      if (parts.length === 4) {
+        const [batch, year, semesterStr, section] = parts;
+        // Parse semester number from "Sem 3" format
+        const semesterMatch = semesterStr.match(/\d+/);
+        const semester = semesterMatch ? parseInt(semesterMatch[0], 10) : null;
+        
+        console.log('🔍 [CLASS ACCESS] Parsing formatted classId:', { batch, year, semesterStr, section, semester });
+        
+        if (semester) {
+          assignment = await ClassAssignment.findOne({
+            batch: batch,
+            year: year,
+            semester: semester,
+            section: section || 'A',
+            active: true
+          }).populate('facultyId', 'name email');
+          
+          // If not found with active: true, try without active filter (for archived classes)
+          if (!assignment) {
+            assignment = await ClassAssignment.findOne({
+              batch: batch,
+              year: year,
+              semester: semester,
+              section: section || 'A'
+            }).populate('facultyId', 'name email');
+          }
+        }
+      }
+    }
 
     if (!assignment) {
       console.log('❌ [CLASS ACCESS] Class assignment not found');
@@ -42,8 +116,35 @@ const verifyClassAccess = async (req, res, next) => {
     }
 
     // Check if this faculty is assigned to this class
-    if (assignment.facultyId._id.toString() !== userId.toString()) {
-      console.log('❌ [CLASS ACCESS] Faculty not assigned to this class');
+    // ClassAssignment.facultyId can reference either User._id or Faculty._id
+    // We need to check both possibilities
+    const assignmentFacultyId = assignment.facultyId?._id?.toString() || assignment.facultyId?.toString();
+    
+    // Get the Faculty document for the current user
+    const faculty = await Faculty.findOne({ userId: userId });
+    
+    if (!faculty) {
+      console.log('❌ [CLASS ACCESS] Faculty not found for user');
+      return res.status(403).json({
+        success: false,
+        message: 'Faculty profile not found'
+      });
+    }
+    
+    // Check if the assignment's facultyId matches:
+    // 1. The current faculty's _id (if facultyId references Faculty)
+    // 2. The current user's _id (if facultyId references User)
+    const currentFacultyId = faculty._id.toString();
+    const currentUserId = userId.toString();
+    
+    const isAuthorized = assignmentFacultyId === currentFacultyId || assignmentFacultyId === currentUserId;
+    
+    if (!isAuthorized) {
+      console.log('❌ [CLASS ACCESS] Faculty not assigned to this class', {
+        assignmentFacultyId,
+        currentFacultyId,
+        currentUserId
+      });
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to access this class'

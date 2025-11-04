@@ -80,22 +80,30 @@ const AttendanceHistory = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'Present':
+    const normalizedStatus = status?.toLowerCase() || '';
+    switch (normalizedStatus) {
+      case 'present':
         return 'bg-green-100 text-green-800';
-      case 'Absent':
+      case 'absent':
         return 'bg-red-100 text-red-800';
+      case 'od':
+      case 'onduty':
+        return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Present':
+    const normalizedStatus = status?.toLowerCase() || '';
+    switch (normalizedStatus) {
+      case 'present':
         return '✅';
-      case 'Absent':
+      case 'absent':
         return '❌';
+      case 'od':
+      case 'onduty':
+        return '🔄';
       default:
         return '❓';
     }
@@ -232,21 +240,52 @@ const AttendanceHistory = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            {record.status === 'Present' ? (
-                              <button
-                                onClick={() => handleEditAttendance(record.studentId._id, 'Absent')}
-                                className="text-red-600 hover:text-red-900 text-sm"
-                              >
-                                Mark Absent
-                              </button>
+                          <div className="flex space-x-2 flex-wrap gap-1">
+                            {record.status === 'Present' || (record.status?.toLowerCase() === 'present') ? (
+                              <>
+                                <button
+                                  onClick={() => handleEditAttendance(record.studentId._id, 'Absent')}
+                                  className="text-red-600 hover:text-red-900 text-sm px-2 py-1 border border-red-300 rounded hover:bg-red-50"
+                                >
+                                  Mark Absent
+                                </button>
+                                <button
+                                  onClick={() => handleEditAttendance(record.studentId._id, 'OD')}
+                                  className="text-blue-600 hover:text-blue-900 text-sm px-2 py-1 border border-blue-300 rounded hover:bg-blue-50"
+                                >
+                                  Mark OD
+                                </button>
+                              </>
+                            ) : record.status === 'OD' || (record.status?.toLowerCase() === 'od') ? (
+                              <>
+                                <button
+                                  onClick={() => handleEditAttendance(record.studentId._id, 'Present')}
+                                  className="text-green-600 hover:text-green-900 text-sm px-2 py-1 border border-green-300 rounded hover:bg-green-50"
+                                >
+                                  Mark Present
+                                </button>
+                                <button
+                                  onClick={() => handleEditAttendance(record.studentId._id, 'Absent')}
+                                  className="text-red-600 hover:text-red-900 text-sm px-2 py-1 border border-red-300 rounded hover:bg-red-50"
+                                >
+                                  Mark Absent
+                                </button>
+                              </>
                             ) : (
-                              <button
-                                onClick={() => handleEditAttendance(record.studentId._id, 'Present')}
-                                className="text-green-600 hover:text-green-900 text-sm"
-                              >
-                                Mark Present
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleEditAttendance(record.studentId._id, 'Present')}
+                                  className="text-green-600 hover:text-green-900 text-sm px-2 py-1 border border-green-300 rounded hover:bg-green-50"
+                                >
+                                  Mark Present
+                                </button>
+                                <button
+                                  onClick={() => handleEditAttendance(record.studentId._id, 'OD')}
+                                  className="text-blue-600 hover:text-blue-900 text-sm px-2 py-1 border border-blue-300 rounded hover:bg-blue-50"
+                                >
+                                  Mark OD
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -259,7 +298,7 @@ const AttendanceHistory = () => {
 
             {/* Summary */}
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
                   <p className="text-2xl font-bold text-gray-900">
                     {attendanceRecords.length}
@@ -268,16 +307,43 @@ const AttendanceHistory = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-green-600">
-                    {attendanceRecords.filter(r => r.status === 'Present').length}
+                    {attendanceRecords.filter(r => {
+                      const status = r.status?.toLowerCase() || '';
+                      return status === 'present' || status === 'od';
+                    }).length}
                   </p>
-                  <p className="text-sm text-gray-600">Present</p>
+                  <p className="text-sm text-gray-600">Present (incl. OD)</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {attendanceRecords.filter(r => {
+                      const status = r.status?.toLowerCase() || '';
+                      return status === 'od' || status === 'onduty';
+                    }).length}
+                  </p>
+                  <p className="text-sm text-gray-600">OD</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-red-600">
-                    {attendanceRecords.filter(r => r.status === 'Absent').length}
+                    {attendanceRecords.filter(r => {
+                      const status = r.status?.toLowerCase() || '';
+                      return status === 'absent';
+                    }).length}
                   </p>
                   <p className="text-sm text-gray-600">Absent</p>
                 </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-300 text-center">
+                <p className="text-sm text-gray-600 mb-1">Attendance Percentage</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {attendanceRecords.length > 0 
+                    ? Math.round((attendanceRecords.filter(r => {
+                        const status = r.status?.toLowerCase() || '';
+                        return status === 'present' || status === 'od';
+                      }).length / attendanceRecords.length) * 100)
+                    : 0}%
+                </p>
+                <p className="text-xs text-gray-500 mt-1">(OD counted as Present)</p>
               </div>
             </div>
           </div>

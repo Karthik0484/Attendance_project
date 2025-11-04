@@ -273,7 +273,7 @@ const AbsenteeReportTab = ({ classData }) => {
     return editedData[key] !== undefined ? editedData[key] : student[field];
   };
 
-  const exportToCSV = () => {
+  const exportToExcel = async () => {
     if (Object.keys(editedData).length > 0) {
       alert('⚠️ Please save changes before exporting. Unsaved changes will not be included in the export.');
       return;
@@ -284,47 +284,88 @@ const AbsenteeReportTab = ({ classData }) => {
       return;
     }
 
-    const { reportType, absentees, classInfo, date } = reportData;
+    try {
+      const { exportToExcelWithLogo } = await import('../utils/excelExport');
+      const { reportType, absentees, classInfo, date } = reportData;
 
-    // Create CSV content
-    let csvContent = 'Absentee Report\n';
-    csvContent += `Class: ${classInfo.classDisplay}\n`;
-    csvContent += `Date: ${date}\n`;
-    csvContent += `Total Students: ${reportData.totalStudents}\n`;
-    csvContent += `Total Absentees: ${reportData.totalAbsentees}\n\n`;
+      // Prepare export data
+      const exportData = absentees.map((student, index) => {
+        const baseData = {
+          'S.No': index + 1,
+          'Roll Number': student.regNo || '',
+          'Student Name': student.name || '',
+          'Email': student.email || '',
+          'Parent Contact': student.parentContact || ''
+        };
 
-    // Headers
-    if (reportType === 'single-day') {
-      csvContent += 'S.No,Reg. No,Name,Email,Parent Contact,Reason,Faculty Action\n';
-      
-      // Rows
-      absentees.forEach((student, index) => {
-        csvContent += `${index + 1},"${student.regNo}","${student.name}","${student.email}","${student.parentContact}","${student.reason}","${student.facultyAction}"\n`;
+        if (reportType === 'single-day') {
+          return {
+            ...baseData,
+            'Status': 'Absent',
+            'Reason': student.reason || '',
+            'Marked By': 'Faculty',
+            'Time': new Date().toLocaleTimeString('en-IN')
+          };
+        } else {
+          return {
+            ...baseData,
+            'Days Absent': student.daysAbsent || 0,
+            'Absent Dates': student.absentDates || '',
+            'Reasons': student.reasons || '',
+            'Faculty Actions': student.facultyActions || ''
+          };
+        }
       });
-    } else {
-      csvContent += 'S.No,Reg. No,Name,Email,Parent Contact,Days Absent,Absent Dates,Reasons,Faculty Actions\n';
+
+      // Prepare date range
+      let dateRange = '';
+      if (reportType === 'single-day') {
+        dateRange = reportData.rawDate || date;
+      } else {
+        dateRange = `${reportData.rawStartDate} to ${reportData.rawEndDate}`;
+      }
+
+      // Parse class info for metadata
+      const classParts = classInfo.classDisplay ? classInfo.classDisplay.split('|') : [];
+      let batch = '', year = '', semester = '', section = '';
       
-      // Rows
-      absentees.forEach((student, index) => {
-        csvContent += `${index + 1},"${student.regNo}","${student.name}","${student.email}","${student.parentContact}",${student.daysAbsent},"${student.absentDates}","${student.reasons}","${student.facultyActions}"\n`;
-      });
+      if (classParts.length >= 3) {
+        year = classParts[0].trim();
+        semester = classParts[1].trim();
+        section = classParts[2].trim();
+      }
+
+      // Calculate summary
+      const totalAbsentees = reportData.totalAbsentees || 0;
+      const totalStudents = reportData.totalStudents || 0;
+
+      // Export to Excel
+      await exportToExcelWithLogo(
+        exportData,
+        'Absentees_Report',
+        'Absentees Report',
+        {
+          reportTitle: 'Absentees Report',
+          department: classData?.department || '',
+          batch: batch,
+          year: year,
+          semester: semester,
+          section: section,
+          dateRange: dateRange,
+          facultyName: 'Faculty',
+          summary: {
+            totalStudents,
+            totalAbsent: totalAbsentees,
+            totalPresent: totalStudents - totalAbsentees
+          }
+        }
+      );
+
+      alert('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Failed to export Excel file. Please try again.');
     }
-
-    // Download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    const filename = reportType === 'single-day' 
-      ? `Absentee_Report_${reportData.rawDate}.csv`
-      : `Absentee_Report_${reportData.rawStartDate}_to_${reportData.rawEndDate}.csv`;
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const exportToPDF = () => {
@@ -608,10 +649,10 @@ const AbsenteeReportTab = ({ classData }) => {
                       ✏️ Edit Report
                     </button>
                     <button
-                      onClick={exportToCSV}
+                      onClick={exportToExcel}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                     >
-                      📄 Export CSV
+                      📊 Export Excel
                     </button>
                     <button
                       onClick={exportToPDF}

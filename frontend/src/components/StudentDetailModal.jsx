@@ -44,13 +44,25 @@ const StudentDetailModal = ({ student, onClose }) => {
   };
 
   const getStatusColor = (status) => {
-    return status === 'present' ? 'text-green-600' : 'text-red-600';
+    const normalizedStatus = status?.toLowerCase() || '';
+    if (normalizedStatus === 'present') return 'text-green-600';
+    if (normalizedStatus === 'od' || normalizedStatus === 'onduty') return 'text-blue-600';
+    if (normalizedStatus === 'absent') return 'text-red-600';
+    return 'text-gray-600';
   };
 
   const getStatusBadge = (status) => {
-    return status === 'present'
-      ? 'bg-green-100 text-green-800'
-      : 'bg-red-100 text-red-800';
+    const normalizedStatus = status?.toLowerCase() || '';
+    if (normalizedStatus === 'present') {
+      return 'bg-green-100 text-green-800';
+    }
+    if (normalizedStatus === 'od' || normalizedStatus === 'onduty') {
+      return 'bg-blue-100 text-blue-800';
+    }
+    if (normalizedStatus === 'absent') {
+      return 'bg-red-100 text-red-800';
+    }
+    return 'bg-gray-100 text-gray-800';
   };
 
   const getCategoryColor = (category) => {
@@ -234,7 +246,10 @@ const StudentDetailModal = ({ student, onClose }) => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
-                              {record.status === 'present' ? '✓ Present' : '✗ Absent'}
+                              {record.status === 'Present' || (record.status?.toLowerCase() === 'present') ? '✓ Present' : 
+                               record.status === 'OD' || (record.status?.toLowerCase() === 'od') ? '🔄 OD' :
+                               record.status === 'Absent' || (record.status?.toLowerCase() === 'absent') ? '✗ Absent' : 
+                               record.status || 'N/A'}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">

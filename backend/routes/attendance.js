@@ -102,6 +102,7 @@ router.get('/:classId/:date', authenticate, facultyAndAbove, async (req, res) =>
           totalStudents: attendance.totalStudents,
           totalPresent: attendance.totalPresent,
           totalAbsent: attendance.totalAbsent,
+          totalOD: attendance.totalOD || 0,
           attendancePercentage: attendance.attendancePercentage
         }
       }
@@ -122,7 +123,7 @@ router.get('/:classId/:date', authenticate, facultyAndAbove, async (req, res) =>
 router.put('/:classId/:date', authenticate, facultyAndAbove, [
   body('records').isArray().withMessage('Records must be an array'),
   body('records.*.studentId').isMongoId().withMessage('Invalid student ID'),
-  body('records.*.status').isIn(['present', 'absent']).withMessage('Status must be present or absent'),
+  body('records.*.status').isIn(['present', 'absent', 'od']).withMessage('Status must be present, absent, or od'),
   body('notes').optional().isString().isLength({ max: 1000 }).withMessage('Notes cannot exceed 1000 characters')
 ], async (req, res) => {
   try {
@@ -265,7 +266,7 @@ router.put('/:classId/:date', authenticate, facultyAndAbove, [
 router.post('/:classId/:date', authenticate, facultyAndAbove, [
   body('records').isArray().withMessage('Records must be an array'),
   body('records.*.studentId').isMongoId().withMessage('Invalid student ID'),
-  body('records.*.status').isIn(['present', 'absent']).withMessage('Status must be present or absent'),
+  body('records.*.status').isIn(['present', 'absent', 'od']).withMessage('Status must be present, absent, or od'),
   body('notes').optional().isString().isLength({ max: 1000 }).withMessage('Notes cannot exceed 1000 characters')
 ], async (req, res) => {
   try {
@@ -368,11 +369,13 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
     const totalStudents = attendanceRecords.length;
     const totalPresent = attendanceRecords.filter(record => record.status === 'present').length;
     const totalAbsent = attendanceRecords.filter(record => record.status === 'absent').length;
+    const totalOD = attendanceRecords.filter(record => record.status === 'od').length;
 
     console.log('📊 Calculated totals:', {
       totalStudents,
       totalPresent,
       totalAbsent,
+      totalOD,
       recordsCount: attendanceRecords.length
     });
 
@@ -386,6 +389,7 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
       totalStudents: totalStudents,
       totalPresent: totalPresent,
       totalAbsent: totalAbsent,
+      totalOD: totalOD,
       status: 'finalized',
       notes: notes || '',
       createdBy: facultyId,
@@ -419,6 +423,7 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
           totalStudents: attendance.totalStudents,
           totalPresent: attendance.totalPresent,
           totalAbsent: attendance.totalAbsent,
+          totalOD: attendance.totalOD || 0,
           attendancePercentage: attendance.attendancePercentage
         }
       }
@@ -720,9 +725,11 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
         attendanceRecord = {
           presentStudents: attendanceModelRecord.records.filter(r => r.status === 'present').map(r => r.rollNumber),
           absentStudents: attendanceModelRecord.records.filter(r => r.status === 'absent').map(r => r.rollNumber),
+          odStudents: attendanceModelRecord.records.filter(r => r.status === 'od').map(r => r.rollNumber),
           totalStudents: attendanceModelRecord.totalStudents,
           totalPresent: attendanceModelRecord.totalPresent,
           totalAbsent: attendanceModelRecord.totalAbsent,
+          totalOD: attendanceModelRecord.totalOD || 0,
           date: normalizedDate,
           updatedAt: attendanceModelRecord.updatedAt,
           status: attendanceModelRecord.status,
@@ -739,6 +746,10 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
       
       if (attendanceModelRecord) {
         attendanceRecord._rawRecords = attendanceModelRecord.records;
+        // Also add odStudents array if not already present in attendanceRecord
+        if (!attendanceRecord.odStudents) {
+          attendanceRecord.odStudents = attendanceModelRecord.records.filter(r => r.status === 'od').map(r => r.rollNumber);
+        }
       }
     }
 
@@ -766,29 +777,58 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
     const attendanceRecords = enrolledStudents.map(student => {
       const isPresent = attendanceRecord?.presentStudents?.includes(student.rollNumber) || false;
       const isAbsent = attendanceRecord?.absentStudents?.includes(student.rollNumber) || false;
+      const isOD = attendanceRecord?.odStudents?.includes(student.rollNumber) || false;
       
       let status = 'Not Marked';
       let remarks = '-';
       let markedBy = '-';
       let timestamp = '-';
       
-      // Look for the student's record in raw records to get the reason
+      // Look for the student's record in raw records to get the reason and actual status
       let studentRecord = null;
       if (attendanceRecord?._rawRecords) {
         studentRecord = attendanceRecord._rawRecords.find(r => r.rollNumber === student.rollNumber);
+        // Check the actual status from the raw record if available
+        if (studentRecord && studentRecord.status) {
+          const recordStatus = studentRecord.status.toLowerCase();
+          if (recordStatus === 'od' || recordStatus === 'onduty') {
+            status = 'OD';
+            remarks = studentRecord.reason || '-';
+            markedBy = faculty.name || 'Faculty';
+            timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+          } else if (recordStatus === 'present') {
+            status = 'Present';
+            remarks = '-';
+            markedBy = faculty.name || 'Faculty';
+            timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+          } else if (recordStatus === 'absent') {
+            status = 'Absent';
+            remarks = studentRecord.reason || '-';
+            markedBy = faculty.name || 'Faculty';
+            timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+          }
+        }
       }
       
-      if (isPresent) {
-        status = 'Present';
-        remarks = '-';
-        markedBy = faculty.name || 'Faculty';
-        timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
-      } else if (isAbsent) {
-        status = 'Absent';
-        // Check if student submitted a reason
-        remarks = studentRecord?.reason || '-';
-        markedBy = faculty.name || 'Faculty';
-        timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+      // Fallback to list-based check if raw record doesn't have status
+      if (status === 'Not Marked') {
+        if (isOD) {
+          status = 'OD';
+          remarks = studentRecord?.reason || '-';
+          markedBy = faculty.name || 'Faculty';
+          timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+        } else if (isPresent) {
+          status = 'Present';
+          remarks = '-';
+          markedBy = faculty.name || 'Faculty';
+          timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+        } else if (isAbsent) {
+          status = 'Absent';
+          // Check if student submitted a reason
+          remarks = studentRecord?.reason || '-';
+          markedBy = faculty.name || 'Faculty';
+          timestamp = attendanceRecord?.updatedAt ? new Date(attendanceRecord.updatedAt).toISOString() : new Date().toISOString();
+        }
       }
 
       return {
@@ -815,6 +855,7 @@ router.get('/history-by-class', authenticate, facultyAndAbove, async (req, res) 
         totalStudents: attendanceRecord?.totalStudents || enrolledStudents.length,
         totalPresent: attendanceRecord?.totalPresent || 0,
         totalAbsent: attendanceRecord?.totalAbsent || 0,
+        totalOD: attendanceRecord?.totalOD || 0,
         attendancePercentage: attendanceRecord?.attendancePercentage || 0
       }
     });
@@ -998,9 +1039,11 @@ router.get('/history-range', authenticate, facultyAndAbove, async (req, res) => 
           attendanceRecord = {
             presentStudents: attendanceModelRecord.records.filter(r => r.status === 'present').map(r => r.rollNumber),
             absentStudents: attendanceModelRecord.records.filter(r => r.status === 'absent').map(r => r.rollNumber),
+            odStudents: attendanceModelRecord.records.filter(r => r.status === 'od').map(r => r.rollNumber),
             totalStudents: attendanceModelRecord.totalStudents,
             totalPresent: attendanceModelRecord.totalPresent,
             totalAbsent: attendanceModelRecord.totalAbsent,
+            totalOD: attendanceModelRecord.totalOD || 0,
             date: normalizedDate,
             updatedAt: attendanceModelRecord.updatedAt,
             status: attendanceModelRecord.status
@@ -1043,8 +1086,12 @@ router.get('/history-range', authenticate, facultyAndAbove, async (req, res) => 
           
           const isPresent = attendanceRecord.presentStudents?.includes(student.rollNumber) || false;
           const isAbsent = attendanceRecord.absentStudents?.includes(student.rollNumber) || false;
+          const isOD = attendanceRecord.odStudents?.includes(student.rollNumber) || false;
           
-          if (isPresent) {
+          if (isOD) {
+            attendanceData[dateStr] = 'OD';
+            presentCount++; // OD is considered as present
+          } else if (isPresent) {
             attendanceData[dateStr] = 'Present';
             presentCount++;
           } else if (isAbsent) {

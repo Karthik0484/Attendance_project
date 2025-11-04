@@ -145,9 +145,9 @@ const StudentDashboard = () => {
             updatedHistory = [{ date: payload.date, status: payload.status, reason: payload.reason }, ...prev];
           }
           
-          // Recalculate overall percentage
+          // Recalculate overall percentage (OD is considered as present)
           const totalRecords = updatedHistory.filter(r => r.status !== 'Not Marked');
-          const presentRecords = updatedHistory.filter(r => r.status === 'Present');
+          const presentRecords = updatedHistory.filter(r => r.status === 'Present' || r.status === 'OD');
           if (totalRecords.length > 0) {
             const percentage = Math.round((presentRecords.length / totalRecords.length) * 100);
             setOverall(`${percentage}%`);

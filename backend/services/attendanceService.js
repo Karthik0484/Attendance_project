@@ -511,17 +511,29 @@ export async function generateAttendanceReport(options) {
     const studentReports = students.map(student => {
       let totalDays = 0;
       let absentDays = 0;
+      let presentDays = 0;
+      let odDays = 0;
       
       attendanceRecords.forEach(record => {
         totalDays++;
-        if (record.absentStudents.includes(student.rollNumber)) {
+        // Check if student is in absent list
+        if (record.absentStudents && record.absentStudents.includes(student.rollNumber)) {
           absentDays++;
+        } else if (record.odStudents && record.odStudents.includes(student.rollNumber)) {
+          odDays++;
+          presentDays++; // OD counts as present
+        } else if (record.presentStudents && record.presentStudents.includes(student.rollNumber)) {
+          presentDays++;
+        } else {
+          // Fallback: check Attendance model if available
+          // This is handled through records processing
+          presentDays++;
         }
       });
       
-      const presentDays = totalDays - absentDays;
-      // Calculate attendance percentage based on working days (excluding holidays)
-      const attendancePercentage = workingDays > 0 ? Math.round((presentDays / workingDays) * 100 * 100) / 100 : 0;
+      // Calculate attendance percentage (OD included as present)
+      const presentAndOD = presentDays + odDays;
+      const attendancePercentage = workingDays > 0 ? Math.round((presentAndOD / workingDays) * 100 * 100) / 100 : 0;
       
       return {
         rollNumber: student.rollNumber,
@@ -529,6 +541,7 @@ export async function generateAttendanceReport(options) {
         email: student.email,
         totalDays: totalDays,
         presentDays: presentDays,
+        odDays: odDays,
         absentDays: absentDays,
         workingDays: workingDays,
         holidayDays: holidayCount,
@@ -536,13 +549,15 @@ export async function generateAttendanceReport(options) {
       };
     });
     
-    // Calculate class statistics
+    // Calculate class statistics (including OD as present)
     const totalDays = attendanceRecords.length;
+    const totalAbsentCount = attendanceRecords.reduce((sum, record) => sum + (record.totalAbsent || 0), 0);
+    const totalODCount = attendanceRecords.reduce((sum, record) => sum + (record.totalOD || 0), 0);
+    const totalPresentCount = attendanceRecords.reduce((sum, record) => sum + (record.totalPresent || 0), 0);
+    const totalPresentAndOD = totalPresentCount + totalODCount;
     const totalPossibleAttendance = students.length * totalDays;
-    const totalAbsentCount = attendanceRecords.reduce((sum, record) => sum + record.totalAbsent, 0);
-    const totalPresentCount = totalPossibleAttendance - totalAbsentCount;
     const classAttendancePercentage = workingDays > 0 ? 
-      Math.round((totalPresentCount / (students.length * workingDays)) * 100 * 100) / 100 : 0;
+      Math.round((totalPresentAndOD / (students.length * workingDays)) * 100 * 100) / 100 : 0;
     
     console.log('✅ Attendance report generated successfully');
     
@@ -563,6 +578,8 @@ export async function generateAttendanceReport(options) {
           totalStudents: students.length,
           totalDays: totalDays,
           totalPresentCount: totalPresentCount,
+          totalODCount: totalODCount,
+          totalPresentAndOD: totalPresentAndOD,
           totalAbsentCount: totalAbsentCount,
           classAttendancePercentage: classAttendancePercentage
         }

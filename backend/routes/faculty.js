@@ -227,12 +227,17 @@ router.get('/hod/dashboard-stats', hodAndAbove, async (req, res) => {
         // Use the aggregated totals from each attendance record
         if (record.totalStudents && record.totalStudents > 0) {
           totalClasses += record.totalStudents;
-          totalPresent += record.totalPresent || 0;
+          // Include OD in present count (totalPresent should already include OD if backend is correct)
+          // But we'll add totalOD if available to ensure accuracy
+          const presentAndOD = (record.totalPresent || 0) + (record.totalOD || 0);
+          totalPresent += presentAndOD;
         } else if (record.records && Array.isArray(record.records)) {
           // Fallback: count from records array if totals not available
           record.records.forEach(studentRecord => {
             totalClasses++;
-            if (studentRecord.status === 'present') {
+            const status = studentRecord.status && studentRecord.status.toLowerCase();
+            // Include OD as present
+            if (status === 'present' || status === 'od' || status === 'onduty') {
               totalPresent++;
             }
           });
@@ -255,12 +260,14 @@ router.get('/hod/dashboard-stats', hodAndAbove, async (req, res) => {
 
     if (todayAttendance) {
       if (todayAttendance.totalPresent !== undefined) {
-        studentsPresentToday = todayAttendance.totalPresent || 0;
+        // Include OD students in present count
+        studentsPresentToday = (todayAttendance.totalPresent || 0) + (todayAttendance.totalOD || 0);
       } else if (todayAttendance.records && Array.isArray(todayAttendance.records)) {
-        // Count from records array
-        studentsPresentToday = todayAttendance.records.filter(
-          record => record.status && record.status.toLowerCase() === 'present'
-        ).length;
+        // Count from records array - include OD as present
+        studentsPresentToday = todayAttendance.records.filter(record => {
+          const status = record.status && record.status.toLowerCase();
+          return status === 'present' || status === 'od' || status === 'onduty';
+        }).length;
       }
     }
 

@@ -52,6 +52,10 @@ const classAttendanceSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  odStudents: [{
+    type: String,
+    trim: true
+  }],
   
   // Auto-calculated totals
   totalStudents: {
@@ -67,6 +71,11 @@ const classAttendanceSchema = new mongoose.Schema({
   totalAbsent: {
     type: Number,
     required: true,
+    min: 0
+  },
+  totalOD: {
+    type: Number,
+    default: 0,
     min: 0
   },
   
@@ -136,13 +145,15 @@ classAttendanceSchema.pre('save', function(next) {
 
 // Validate totals match actual counts
 classAttendanceSchema.pre('save', function(next) {
-  const actualPresent = this.presentStudents.length;
-  const actualAbsent = this.absentStudents.length;
-  const actualTotal = actualPresent + actualAbsent;
+  const actualPresent = this.presentStudents?.length || 0;
+  const actualAbsent = this.absentStudents?.length || 0;
+  const actualOD = this.odStudents?.length || 0;
+  const actualTotal = actualPresent + actualAbsent + actualOD;
   
   // Auto-calculate totals if they don't match
   this.totalPresent = actualPresent;
   this.totalAbsent = actualAbsent;
+  this.totalOD = actualOD;
   this.totalStudents = actualTotal;
   
   next();
@@ -158,29 +169,48 @@ classAttendanceSchema.index({ date: -1 }); // For date-based queries
 
 // Validation
 classAttendanceSchema.pre('validate', function(next) {
-  // Ensure no duplicate roll numbers between present and absent
-  const presentSet = new Set(this.presentStudents);
-  const absentSet = new Set(this.absentStudents);
+  // Ensure no duplicate roll numbers between present, absent, and OD
+  const presentSet = new Set(this.presentStudents || []);
+  const absentSet = new Set(this.absentStudents || []);
+  const odSet = new Set(this.odStudents || []);
   
-  for (const rollNumber of this.presentStudents) {
+  // Check for duplicates between all categories
+  for (const rollNumber of (this.presentStudents || [])) {
     if (absentSet.has(rollNumber)) {
       return next(new Error('Student cannot be both present and absent'));
     }
+    if (odSet.has(rollNumber)) {
+      return next(new Error('Student cannot be both present and OD'));
+    }
   }
   
-  for (const rollNumber of this.absentStudents) {
+  for (const rollNumber of (this.absentStudents || [])) {
     if (presentSet.has(rollNumber)) {
       return next(new Error('Student cannot be both present and absent'));
+    }
+    if (odSet.has(rollNumber)) {
+      return next(new Error('Student cannot be both absent and OD'));
+    }
+  }
+  
+  for (const rollNumber of (this.odStudents || [])) {
+    if (presentSet.has(rollNumber)) {
+      return next(new Error('Student cannot be both present and OD'));
+    }
+    if (absentSet.has(rollNumber)) {
+      return next(new Error('Student cannot be both absent and OD'));
     }
   }
   
   next();
 });
 
-// Virtual for attendance percentage
+// Virtual for attendance percentage (OD is considered as present)
 classAttendanceSchema.virtual('attendancePercentage').get(function() {
   if (this.totalStudents === 0) return 0;
-  return Math.round((this.totalPresent / this.totalStudents) * 100 * 100) / 100; // Round to 2 decimal places
+  // Include OD students in present count if odStudents array exists
+  const presentAndOD = (this.totalPresent || 0) + (this.odStudents?.length || 0);
+  return Math.round((presentAndOD / this.totalStudents) * 100 * 100) / 100; // Round to 2 decimal places
 });
 
 // Ensure virtual fields are included in JSON output

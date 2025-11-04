@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
-import * as XLSX from 'xlsx';
+import { exportToExcelWithLogo } from '../utils/excelExport';
 import StudentDetailModal from '../components/StudentDetailModal';
 
 const StudentReportsPage = () => {
@@ -111,30 +111,39 @@ const StudentReportsPage = () => {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (reports.length === 0) {
       alert('No data to export');
       return;
     }
 
-    const exportData = sortedReports.map(student => ({
-      'Roll Number': student.rollNumber,
-      'Student Name': student.studentName,
-      'Email': student.email,
-      'Class': student.class,
-      'Faculty': student.facultyName || 'N/A',
-      'Total Sessions': student.totalSessions,
-      'Attended': student.attendedSessions,
-      'Attendance %': student.attendancePercentage,
-      'Category': student.category
-    }));
+    try {
+      const exportData = sortedReports.map(student => ({
+        'Roll Number': student.rollNumber,
+        'Student Name': student.studentName,
+        'Email': student.email,
+        'Class': student.class,
+        'Faculty': student.facultyName || 'N/A',
+        'Total Working Days': student.totalSessions,
+        'Days Present': student.attendedSessions,
+        'Attendance %': student.attendancePercentage,
+        'Category': student.category
+      }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Student Reports');
-
-    const filename = `Student_Reports_${user.department}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, filename);
+      await exportToExcelWithLogo(
+        exportData,
+        `Student_Reports_${user.department}`,
+        'Student Reports',
+        {
+          title: 'Student Attendance Report',
+          department: user.department,
+          showDate: true
+        }
+      );
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Failed to export Excel file. Please try again.');
+    }
   };
 
   const handleViewDetails = async (student) => {
@@ -419,7 +428,7 @@ const StudentReportsPage = () => {
                       Faculty
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Sessions
+                      Days Present
                     </th>
                     <th 
                       onClick={() => handleSort('attendancePercentage')}
@@ -460,6 +469,7 @@ const StudentReportsPage = () => {
                           <span className="text-green-600 font-medium">{student.attendedSessions}</span>
                           {' / '}
                           <span className="text-gray-600 font-medium">{student.totalSessions}</span>
+                          <div className="text-[10px] text-gray-500 mt-0.5">Present / Total</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

@@ -1414,9 +1414,9 @@ router.get('/:id/profile-detailed', authenticate, async (req, res) => {
     } else if (['faculty', 'hod', 'principal', 'admin'].includes(currentUser.role)) {
       // Faculty and above can view students from their department
       if (student.department !== currentUser.department) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. You can only view students from your department.'
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view students from your department.'
         });
       }
     } else {
@@ -1487,6 +1487,8 @@ router.get('/:id/profile-detailed', authenticate, async (req, res) => {
             normalizedStatus = 'Present';
           } else if (statusLower === 'absent') {
             normalizedStatus = 'Absent';
+          } else if (statusLower === 'od' || statusLower === 'onduty') {
+            normalizedStatus = 'OD';
           } else {
             normalizedStatus = studentRecord.status;
           }
@@ -1550,8 +1552,13 @@ router.get('/:id/profile-detailed', authenticate, async (req, res) => {
     });
 
     const totalDays = workingDaysRecords.length;
-    const presentDays = workingDaysRecords.filter(record => record.status && record.status.toLowerCase() === 'present').length;
+    const presentDays = workingDaysRecords.filter(record => {
+      const status = record.status && record.status.toLowerCase();
+      return status === 'present' || status === 'od';
+    }).length;
+    const odDays = workingDaysRecords.filter(record => record.status && record.status.toLowerCase() === 'od').length;
     const absentDays = workingDaysRecords.filter(record => record.status && record.status.toLowerCase() === 'absent').length;
+    // OD is considered as present for percentage calculation
     const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
     // Group attendance by month for calendar view
@@ -1640,6 +1647,7 @@ router.get('/:id/profile-detailed', authenticate, async (req, res) => {
           totalDays,
           presentDays,
           absentDays,
+          odDays: odDays || 0,
           attendancePercentage,
           recentDays: recentAttendance.length
         },
@@ -1654,9 +1662,9 @@ router.get('/:id/profile-detailed', authenticate, async (req, res) => {
               : record.date;
           return {
             date: recordDate,
-            status: record.status,
-            reason: record.reason || '',
-            actionTaken: record.actionTaken || ''
+          status: record.status,
+          reason: record.reason || '',
+          actionTaken: record.actionTaken || ''
           };
         }),
         // Holidays
@@ -2396,7 +2404,8 @@ router.get('/:userId/semesters', authenticate, async (req, res) => {
           const attendanceDateStr = typeof doc.date === 'string' ? doc.date : doc.date.toISOString().split('T')[0];
           if (studentRecord && !holidayDates.has(attendanceDateStr)) {
             totalDays++;
-            if (studentRecord.status === 'present') {
+            const status = studentRecord.status && studentRecord.status.toLowerCase();
+            if (status === 'present' || status === 'od') {
               presentDays++;
             }
           }
@@ -2594,9 +2603,22 @@ router.get('/:userId/semesters/:semesterId/attendance', authenticate, async (req
         attendanceDatesSet.add(attendanceDateStr);
         const isHoliday = holidayMap.has(attendanceDateStr);
         
+        // Normalize status to title case
+        let normalizedStatus = 'Not Marked';
+        const statusLower = studentRecord.status && studentRecord.status.toLowerCase();
+        if (isHoliday) {
+          normalizedStatus = 'Holiday';
+        } else if (statusLower === 'present') {
+          normalizedStatus = 'Present';
+        } else if (statusLower === 'od' || statusLower === 'onduty') {
+          normalizedStatus = 'OD';
+        } else if (statusLower === 'absent') {
+          normalizedStatus = 'Absent';
+        }
+        
         const record = {
           date: doc.date,
-          status: isHoliday ? 'Holiday' : (studentRecord.status === 'present' ? 'Present' : 'Absent'),
+          status: normalizedStatus,
           reason: studentRecord.reason || null,
           reviewStatus: studentRecord.reviewStatus || 'Not Applicable',
           facultyNote: studentRecord.facultyNote || null,
@@ -2608,8 +2630,10 @@ router.get('/:userId/semesters/:semesterId/attendance', authenticate, async (req
 
         if (isHoliday) {
           holidayDays++;
-        } else if (studentRecord.status === 'present') {
+        } else if (statusLower === 'present') {
           presentDays++;
+        } else if (statusLower === 'od' || statusLower === 'onduty') {
+          // OD days will be counted separately, but included in present for percentage
         } else {
           absentDays++;
         }
@@ -2642,14 +2666,24 @@ router.get('/:userId/semesters/:semesterId/attendance', authenticate, async (req
       return dateB - dateA;
     });
 
-    const totalWorkingDays = presentDays + absentDays;
+    // Count OD days separately
+    const odDays = attendanceRecords.filter(record => {
+      const status = record.status && record.status.toLowerCase();
+      return status === 'od';
+    }).length;
+    
+    // Include OD days in present count for percentage calculation
+    const presentAndODDays = presentDays + odDays;
+    const totalWorkingDays = presentAndODDays + absentDays;
+    // OD is considered as present for percentage calculation
     const attendancePercentage = totalWorkingDays > 0 
-      ? Math.round((presentDays / totalWorkingDays) * 100) 
+      ? Math.round((presentAndODDays / totalWorkingDays) * 100) 
       : 0;
 
     console.log(`📊 Final stats:`, {
       totalRecords: attendanceRecords.length,
       presentDays,
+      odDays,
       absentDays,
       holidayDays,
       totalWorkingDays,
@@ -2677,6 +2711,7 @@ router.get('/:userId/semesters/:semesterId/attendance', authenticate, async (req
         stats: {
           totalWorkingDays,
           presentDays,
+          odDays,
           absentDays,
           holidayDays,
           attendancePercentage
@@ -2756,9 +2791,22 @@ async function getAttendanceStats(studentId, department) {
         // Normalize attendance date for comparison
         const attendanceDateStr = typeof doc.date === 'string' ? doc.date : doc.date.toISOString().split('T')[0];
         const isHoliday = holidayDates.has(attendanceDateStr);
+        let normalizedStatus = 'Absent';
+        if (isHoliday) {
+          normalizedStatus = 'Holiday';
+        } else {
+          const statusLower = studentRecord.status && studentRecord.status.toLowerCase();
+          if (statusLower === 'present') {
+            normalizedStatus = 'Present';
+          } else if (statusLower === 'od' || statusLower === 'onduty') {
+            normalizedStatus = 'OD';
+          } else if (statusLower === 'absent') {
+            normalizedStatus = 'Absent';
+          }
+        }
         studentAttendance.push({
           date: doc.date,
-          status: isHoliday ? 'Holiday' : (studentRecord.status === 'present' ? 'Present' : 'Absent'),
+          status: normalizedStatus,
           reason: studentRecord.reason || null,
           reviewStatus: studentRecord.reviewStatus || 'Not Applicable',
           facultyNote: studentRecord.facultyNote || null,
@@ -2772,9 +2820,17 @@ async function getAttendanceStats(studentId, department) {
     // Calculate stats excluding holidays
     const workingDays = studentAttendance.filter(record => record.status !== 'Holiday');
     const totalDays = workingDays.length;
-    const presentDays = workingDays.filter(record => record.status === 'Present').length;
+    const presentDays = workingDays.filter(record => {
+      const status = record.status && record.status.toLowerCase();
+      return status === 'present' || status === 'od';
+    }).length;
+    const odDays = workingDays.filter(record => {
+      const status = record.status && record.status.toLowerCase();
+      return status === 'od';
+    }).length;
     const absentDays = workingDays.filter(record => record.status === 'Absent').length;
     const holidayDays = studentAttendance.filter(record => record.status === 'Holiday').length;
+    // OD is considered as present for percentage calculation
     const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
 
     console.log(`📈 Stats: Total=${totalDays}, Present=${presentDays}, Absent=${absentDays}, Holidays=${holidayDays}, Percentage=${attendancePercentage}%`);
@@ -2790,6 +2846,7 @@ async function getAttendanceStats(studentId, department) {
       totalDays,
       presentDays,
       absentDays,
+      odDays: odDays || 0,
       holidayDays,
       attendancePercentage,
       recentAttendance,
@@ -2869,10 +2926,18 @@ router.get('/:id/attendance', authenticate, async (req, res) => {
       });
     }
 
-    // Calculate statistics
-    const presentDays = allAttendanceRecords.filter(record => record.status === 'Present').length;
+    // Calculate statistics (OD is considered as present)
+    const presentDays = allAttendanceRecords.filter(record => {
+      const status = record.status && record.status.toLowerCase();
+      return status === 'present' || status === 'od';
+    }).length;
+    const odDays = allAttendanceRecords.filter(record => {
+      const status = record.status && record.status.toLowerCase();
+      return status === 'od';
+    }).length;
     const absentDays = allAttendanceRecords.filter(record => record.status === 'Absent').length;
     const totalWorkingDays = presentDays + absentDays;
+    // OD is considered as present for percentage calculation
     const attendancePercentage = totalWorkingDays > 0 ? Math.round((presentDays / totalWorkingDays) * 100) : 0;
 
     // Get current semester absents (last 30 days as approximation)

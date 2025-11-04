@@ -16,7 +16,7 @@ const SemesterDetailPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAbsenceReasonModal, setShowAbsenceReasonModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [filterStatus, setFilterStatus] = useState('all'); // all, present, absent, holiday
+  const [filterStatus, setFilterStatus] = useState('all'); // all, present, absent, od, holiday
 
   // Get semester data from navigation state or fetch it
   const semesterInfo = location.state?.semester;
@@ -92,8 +92,15 @@ const SemesterDetailPage = () => {
   const filteredAttendance = filterStatus === 'all' 
     ? attendance 
     : attendance.filter(record => {
-        if (filterStatus === 'present') return record.status === 'Present';
+        if (filterStatus === 'present') {
+          const status = record.status?.toLowerCase() || '';
+          return status === 'present' || status === 'od';
+        }
         if (filterStatus === 'absent') return record.status === 'Absent';
+        if (filterStatus === 'od') {
+          const status = record.status?.toLowerCase() || '';
+          return status === 'od' || status === 'onduty';
+        }
         if (filterStatus === 'holiday') return record.status === 'Holiday';
         return true;
       });
@@ -168,7 +175,7 @@ const SemesterDetailPage = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           {/* Attendance Percentage */}
           <div className={`rounded-lg shadow-md p-6 ${getPercentageColor(stats?.attendancePercentage || 0)}`}>
             <div className="flex items-center mb-2">
@@ -187,13 +194,25 @@ const SemesterDetailPage = () => {
             <p className="text-4xl font-bold text-blue-600">{stats?.totalWorkingDays || 0}</p>
           </div>
 
-          {/* Present Days */}
+          {/* Present Days (incl. OD) */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center mb-2">
               <span className="text-3xl mr-3">✅</span>
               <h3 className="text-sm font-medium text-gray-700">Present Days</h3>
             </div>
-            <p className="text-4xl font-bold text-green-600">{stats?.presentDays || 0}</p>
+            <p className="text-4xl font-bold text-green-600">
+              {(stats?.presentDays || 0) + (stats?.odDays || 0)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">(incl. {stats?.odDays || 0} OD)</p>
+          </div>
+
+          {/* OD Days */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center mb-2">
+              <span className="text-3xl mr-3">🔄</span>
+              <h3 className="text-sm font-medium text-gray-700">OD Days</h3>
+            </div>
+            <p className="text-4xl font-bold text-blue-600">{stats?.odDays || 0}</p>
           </div>
 
           {/* Absent Days */}
@@ -235,7 +254,17 @@ const SemesterDetailPage = () => {
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  Present ({stats?.presentDays || 0})
+                  Present ({(stats?.presentDays || 0) + (stats?.odDays || 0)})
+                </button>
+                <button
+                  onClick={() => setFilterStatus('od')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filterStatus === 'od'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  OD ({stats?.odDays || 0})
                 </button>
                 <button
                   onClick={() => setFilterStatus('absent')}
@@ -326,6 +355,8 @@ const SemesterDetailPage = () => {
                               ? 'bg-green-100 text-green-700'
                               : record.status === 'Absent'
                               ? 'bg-red-100 text-red-700'
+                              : record.status === 'OD' || record.status === 'od'
+                              ? 'bg-blue-100 text-blue-700'
                               : record.status === 'Holiday'
                               ? 'bg-purple-100 text-purple-700'
                               : 'bg-gray-100 text-gray-700'
@@ -333,6 +364,7 @@ const SemesterDetailPage = () => {
                         >
                           {record.status === 'Present' && '✅ Present'}
                           {record.status === 'Absent' && '❌ Absent'}
+                          {(record.status === 'OD' || record.status === 'od') && '🔄 OD'}
                           {record.status === 'Holiday' && '🎉 Holiday'}
                         </span>
 

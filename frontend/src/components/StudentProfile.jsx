@@ -61,7 +61,9 @@ const StudentProfile = ({ onToast }) => {
     switch (normalizedStatus) {
       case 'present': return 'text-green-700 bg-green-100 border border-green-200';
       case 'absent': return 'text-red-700 bg-red-100 border border-red-200';
-      case 'holiday': return 'text-blue-700 bg-blue-100 border border-blue-200';
+      case 'od': 
+      case 'onduty': return 'text-blue-700 bg-blue-100 border border-blue-200';
+      case 'holiday': return 'text-purple-700 bg-purple-100 border border-purple-200';
       case 'not marked': return 'text-gray-600 bg-gray-100 border border-gray-200';
       default: return 'text-gray-600 bg-gray-100 border border-gray-200';
     }
@@ -136,6 +138,7 @@ const StudentProfile = ({ onToast }) => {
             <span className="text-[10px] sm:text-xs leading-none mt-0.5 font-bold">
               {status.toLowerCase() === 'present' ? '✓' : 
                status.toLowerCase() === 'absent' ? '✗' : 
+               status.toLowerCase() === 'od' ? '🔄' :
                status.toLowerCase() === 'holiday' ? '🎉' : ''}
             </span>
           )}
@@ -172,9 +175,15 @@ const StudentProfile = ({ onToast }) => {
             </div>
             <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-blue-100 px-4 py-2.5 rounded-lg border-2 border-blue-300 shadow-sm">
               <div className="w-5 h-5 bg-blue-500 rounded-full shadow-md flex items-center justify-center">
+                <span className="text-white text-xs">🔄</span>
+              </div>
+              <span className="text-sm font-semibold text-blue-800">OD</span>
+            </div>
+            <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-purple-100 px-4 py-2.5 rounded-lg border-2 border-purple-300 shadow-sm">
+              <div className="w-5 h-5 bg-purple-500 rounded-full shadow-md flex items-center justify-center">
                 <span className="text-white text-xs">🎉</span>
               </div>
-              <span className="text-sm font-semibold text-blue-800">Holiday</span>
+              <span className="text-sm font-semibold text-purple-800">Holiday</span>
             </div>
             <div className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2.5 rounded-lg border-2 border-gray-300 shadow-sm">
               <div className="w-5 h-5 bg-gray-400 rounded-full shadow-md"></div>
@@ -407,7 +416,7 @@ const StudentProfile = ({ onToast }) => {
                   Attendance Overview
                 </h2>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                 <div className="bg-white rounded-lg p-4 shadow-md border border-gray-100 text-center transform hover:scale-105 transition-transform">
                   <div className="text-3xl font-bold text-gray-800 mb-1">{attendanceStats.totalDays || 0}</div>
                   <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Days</div>
@@ -415,6 +424,10 @@ const StudentProfile = ({ onToast }) => {
                 <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 shadow-md border border-green-200 text-center transform hover:scale-105 transition-transform">
                   <div className="text-3xl font-bold text-green-700 mb-1">{attendanceStats.presentDays || 0}</div>
                   <div className="text-xs font-medium text-green-700 uppercase tracking-wide">Present</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 shadow-md border border-blue-200 text-center transform hover:scale-105 transition-transform">
+                  <div className="text-3xl font-bold text-blue-700 mb-1">{attendanceStats.odDays || 0}</div>
+                  <div className="text-xs font-medium text-blue-700 uppercase tracking-wide">OD</div>
                 </div>
                 <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-4 shadow-md border border-red-200 text-center transform hover:scale-105 transition-transform">
                   <div className="text-3xl font-bold text-red-700 mb-1">{attendanceStats.absentDays || 0}</div>
@@ -521,10 +534,14 @@ const StudentProfile = ({ onToast }) => {
                           <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-lg ${
                             record.status === 'Present' ? 'bg-gradient-to-br from-green-400 to-green-600' :
                             record.status === 'Absent' ? 'bg-gradient-to-br from-red-400 to-red-600' :
-                            record.status === 'Holiday' ? 'bg-gradient-to-br from-blue-400 to-blue-600' :
+                            record.status === 'OD' || record.status === 'od' ? 'bg-gradient-to-br from-blue-400 to-blue-600' :
+                            record.status === 'Holiday' ? 'bg-gradient-to-br from-purple-400 to-purple-600' :
                             'bg-gradient-to-br from-gray-400 to-gray-600'
                           }`}>
-                            {record.status === 'Present' ? '✓' : record.status === 'Absent' ? '✗' : record.status === 'Holiday' ? '🎉' : '?'}
+                            {record.status === 'Present' ? '✓' : 
+                             record.status === 'Absent' ? '✗' : 
+                             record.status === 'OD' || record.status === 'od' ? '🔄' :
+                             record.status === 'Holiday' ? '🎉' : '?'}
                           </div>
                           <div>
                             <div className="font-semibold text-gray-800">{formatDate(record.date)}</div>

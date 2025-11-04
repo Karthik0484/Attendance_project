@@ -381,7 +381,8 @@ const ClassAttendanceManagement = () => {
 // Mark Attendance Tab Component
 const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, navigate }) => {
   const [attendanceForm, setAttendanceForm] = useState({
-    absentees: ''
+    absentees: '',
+    odStudents: ''
   });
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceExists, setAttendanceExists] = useState(false);
@@ -465,7 +466,9 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
   };
 
   // Calculate present count in real-time
-  const presentCount = Math.max(0, (students?.length || 0) - (attendanceForm.absentees.split(',').filter(id => id.trim()).length));
+  const absentCount = attendanceForm.absentees.split(',').filter(id => id.trim()).length;
+  const odCount = attendanceForm.odStudents.split(',').filter(id => id.trim()).length;
+  const presentCount = Math.max(0, (students?.length || 0) - absentCount - odCount);
 
   // Helper function to get attendance status for a student
   const getStudentAttendanceStatus = (rollNumber) => {
@@ -481,19 +484,37 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
     // Ensure we have arrays to work with
     const presentStudents = Array.isArray(todayAttendance.presentStudents) ? todayAttendance.presentStudents : [];
     const absentStudents = Array.isArray(todayAttendance.absentStudents) ? todayAttendance.absentStudents : [];
+    const odStudents = Array.isArray(todayAttendance.odStudents) ? todayAttendance.odStudents : [];
+    
+    // Also check records array if present (from API response)
+    let statusFromRecords = null;
+    if (todayAttendance.records && Array.isArray(todayAttendance.records)) {
+      const record = todayAttendance.records.find(r => {
+        const rollNum = r.rollNumber || (r.studentId && (r.studentId.rollNumber || r.studentId.rollNo || r.studentId.regNo));
+        return rollNum === rollNumber;
+      });
+      if (record) {
+        statusFromRecords = record.status;
+      }
+    }
     
     const isPresent = presentStudents.includes(rollNumber);
     const isAbsent = absentStudents.includes(rollNumber);
+    const isOD = odStudents.includes(rollNumber) || statusFromRecords === 'od' || statusFromRecords === 'OD';
     
     console.log('📋 Attendance check for', rollNumber, ':', {
       isPresent,
       isAbsent,
+      isOD,
       presentStudents: presentStudents,
       absentStudents: absentStudents,
+      odStudents: odStudents,
+      statusFromRecords,
       fullAttendanceData: todayAttendance
     });
     
-    if (isPresent) return 'Present';
+    if (isPresent && !isOD) return 'Present';
+    if (isOD) return 'OD';
     if (isAbsent) return 'Absent';
     return 'Not Marked';
   };
@@ -528,14 +549,21 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             .filter(record => record.status === 'absent')
             .map(record => record.rollNumber);
           
+          const odStudents = attendance.records
+            .filter(record => record.status === 'od')
+            .map(record => record.rollNumber);
+          
           const attendanceData = {
             presentStudents: presentStudents,
             absentStudents: absentStudents,
+            odStudents: odStudents,
             totalStudents: attendance.totalStudents || 0,
             totalPresent: attendance.totalPresent || 0,
             totalAbsent: attendance.totalAbsent || 0,
+            totalOD: attendance.totalOD || 0,
             date: attendance.date,
-            status: attendance.status
+            status: attendance.status,
+            records: attendance.records // Keep records for status checking
           };
           
           setTodayAttendance(attendanceData);
@@ -568,16 +596,20 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
           const attendanceData = {
             presentStudents: attendance.presentStudents || [],
             absentStudents: attendance.absentStudents || [],
+            odStudents: attendance.odStudents || [],
             totalStudents: attendance.totalStudents || 0,
             totalPresent: attendance.totalPresent || 0,
             totalAbsent: attendance.totalAbsent || 0,
+            totalOD: attendance.totalOD || 0,
             date: attendance.date,
-            status: attendance.status
+            status: attendance.status,
+            records: attendance.records || [] // Keep records if available
           };
           setTodayAttendance(attendanceData);
           console.log('📋 Processed attendance data from old API:', attendanceData);
           console.log('📋 Present students array:', attendanceData.presentStudents);
           console.log('📋 Absent students array:', attendanceData.absentStudents);
+          console.log('📋 OD students array:', attendanceData.odStudents);
         } else {
           setTodayAttendance(null);
           console.log('📋 No attendance data found for today');
@@ -620,11 +652,15 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
       
       let errorMessage = 'Failed to refresh student list';
       if (error.response?.status === 403) {
-        errorMessage = 'Access denied: Not authorized to view these students';
+        errorMessage = error.response.data?.message || 'Access denied: Not authorized to view these students';
       } else if (error.response?.status === 404) {
-        errorMessage = 'Class not found';
+        errorMessage = error.response.data?.message || 'Class not found';
+      } else if (error.response?.status === 500) {
+        errorMessage = error.response.data?.message || 'Server error: Please try again';
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
       onToast(errorMessage, 'error');
@@ -650,9 +686,16 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
         .map(id => id.trim())
         .filter(id => id.length > 0);
 
-      // Validate that all absent roll numbers exist in the student list
+      // Convert OD students string to array of roll numbers
+      const odRollNumbers = attendanceForm.odStudents
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+
+      // Validate that all roll numbers exist in the student list
       const studentRollNumbers = (students || []).map(s => s.rollNumber);
-      const invalidRollNumbers = absentRollNumbers.filter(roll => !studentRollNumbers.includes(roll));
+      const allInputRollNumbers = [...absentRollNumbers, ...odRollNumbers];
+      const invalidRollNumbers = allInputRollNumbers.filter(roll => !studentRollNumbers.includes(roll));
       
       if (invalidRollNumbers.length > 0) {
         onToast(`Invalid roll numbers not found in class: ${invalidRollNumbers.join(', ')}`, 'error');
@@ -660,11 +703,28 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
         return;
       }
 
+      // Check for overlapping roll numbers
+      const overlappingRollNumbers = absentRollNumbers.filter(roll => odRollNumbers.includes(roll));
+      if (overlappingRollNumbers.length > 0) {
+        onToast(`Roll numbers cannot be both absent and OD: ${overlappingRollNumbers.join(', ')}`, 'error');
+        setAttendanceLoading(false);
+        return;
+      }
+
       // Create attendance records for all students
-      const records = (students || []).map(student => ({
+      const records = (students || []).map(student => {
+        const rollNum = student.rollNumber;
+        let status = 'present';
+        if (absentRollNumbers.includes(rollNum)) {
+          status = 'absent';
+        } else if (odRollNumbers.includes(rollNum)) {
+          status = 'od';
+        }
+        return {
         studentId: student._id,
-        status: absentRollNumbers.includes(student.rollNumber) ? 'absent' : 'present'
-      }));
+          status: status
+        };
+      });
 
       const requestData = {
         records: records,
@@ -681,19 +741,22 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
 
       if (response.data.success) {
         onToast('✓ Attendance marked successfully!', 'success');
-        setAttendanceForm(prev => ({ ...prev, absentees: '' }));
+        setAttendanceForm(prev => ({ ...prev, absentees: '', odStudents: '' }));
         
         // Create attendance data from the form submission
-        const presentStudents = (students || []).filter(student => 
-          !absentRollNumbers.includes(student.rollNumber)
-        ).map(student => student.rollNumber);
+        const presentStudents = (students || []).filter(student => {
+          const rollNum = student.rollNumber;
+          return !absentRollNumbers.includes(rollNum) && !odRollNumbers.includes(rollNum);
+        }).map(student => student.rollNumber);
         
         const attendanceData = {
           presentStudents: presentStudents,
           absentStudents: absentRollNumbers,
+          odStudents: odRollNumbers,
           totalStudents: (students || []).length,
           totalPresent: presentStudents.length,
           totalAbsent: absentRollNumbers.length,
+          totalOD: odRollNumbers.length,
           date: today,
           status: 'finalized'
         };
@@ -839,6 +902,20 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+              On Duty (OD) Students (Enter roll numbers separated by commas)
+              </label>
+              <textarea
+                name="odStudents"
+                value={attendanceForm.odStudents}
+                onChange={handleAttendanceChange}
+              placeholder="e.g., STU002, STU004, STU006"
+                rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
           <div className="flex justify-end">
                 <button
                   type="submit"
@@ -927,11 +1004,15 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                           const statusColors = {
                             'Present': 'bg-green-100 text-green-800',
                             'Absent': 'bg-red-100 text-red-800',
+                            'OD': 'bg-blue-100 text-blue-800',
+                            'On Duty': 'bg-blue-100 text-blue-800',
                             'Not Marked': 'bg-gray-100 text-gray-800'
                           };
+                          // Normalize status display (handle both 'OD' and 'On Duty')
+                          const displayStatus = status === 'od' || status === 'OD' ? 'OD' : status;
                           return (
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[status]}`}>
-                              {status}
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[displayStatus] || statusColors['Not Marked']}`}>
+                              {displayStatus}
                             </span>
                           );
                         })()}
@@ -1225,6 +1306,14 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
                 </p>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700">OD</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {attendanceData 
+                    ? (attendanceData.totalOD || 0)
+                    : studentRecords.filter(s => s.status === 'od').length}
+                </p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700">Absent</label>
                 <p className="mt-1 text-sm text-gray-900">
                   {attendanceData 
@@ -1300,7 +1389,7 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
                     {student.email || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-1">
                       <button
                         onClick={() => handleStatusChange(student.studentId, 'present')}
                         className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
@@ -1310,6 +1399,16 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
                         }`}
                       >
                         Present
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange(student.studentId, 'od')}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                          student.status === 'od'
+                            ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
+                            : 'bg-gray-100 text-gray-600 hover:bg-blue-50'
+                        }`}
+                      >
+                        OD
                       </button>
                       <button
                         onClick={() => handleStatusChange(student.studentId, 'absent')}
@@ -1335,6 +1434,7 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
 
 // Enhanced Attendance History Tab Component
 const AttendanceHistoryTab = ({ classData, students, onToast }) => {
+  const { user } = useAuth(); // Add useAuth hook to access user data
   const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [rangeAttendanceData, setRangeAttendanceData] = useState([]);
   const [workingDays, setWorkingDays] = useState([]);
@@ -1862,21 +1962,23 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
       const totalDays = present + absent + od + holiday;
       
       // Calculate attendance percentage
+      // OD is considered as present for percentage calculation
+      const presentAndOD = present + od;
       let attendancePercentage = 0;
       if (totalDays > 0) {
-        attendancePercentage = Math.round((present / (present + absent + od)) * 100 * 10) / 10;
+        attendancePercentage = Math.round((presentAndOD / (presentAndOD + absent)) * 100 * 10) / 10;
       }
       
       // Final validation: Ensure the calculated values make sense
-      if (present > 0 && absent > 0) {
-        const calculatedPercentage = Math.round((present / (present + absent + od)) * 100 * 10) / 10;
-        console.log(`📊 Final validation for ${apiStudent.name}: ${present} present, ${absent} absent, ${calculatedPercentage}% calculated`);
+      if (presentAndOD > 0 && absent > 0) {
+        const calculatedPercentage = Math.round((presentAndOD / (presentAndOD + absent)) * 100 * 10) / 10;
+        console.log(`📊 Final validation for ${apiStudent.name}: ${present} present, ${od} OD, ${absent} absent, ${calculatedPercentage}% calculated`);
       }
       
       // Recalculate total days and percentage with updated absent
       const finalTotalDays = present + absent + od + holiday;
       const finalAttendancePercentage = finalTotalDays > 0 ? 
-        Math.round((present / (present + absent + od)) * 100 * 10) / 10 : 0;
+        Math.round((presentAndOD / (presentAndOD + absent)) * 100 * 10) / 10 : 0;
       
       console.log('📊 Calculated metrics:', {
         present, absent, od, holiday, totalDays, attendancePercentage
@@ -2001,11 +2103,12 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
       }
     });
     
-    // Calculate percentages
+    // Calculate percentages (OD is considered as present)
     const totalWorkingDays = workingDays.size;
     const summaries = Array.from(studentMap.values()).map(student => {
+      const presentAndOD = student.present + student.od;
       student.attendancePercentage = totalWorkingDays > 0 ? 
-        Math.round((student.present / totalWorkingDays) * 100 * 10) / 10 : 0;
+        Math.round((presentAndOD / totalWorkingDays) * 100 * 10) / 10 : 0;
       return student;
     });
     
@@ -2040,7 +2143,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
       case 'absent':
         return '❌';
       case 'od':
-        return '💤';
+        return '🔄';
       case 'holiday':
         return '🏖️';
       default:
@@ -2117,89 +2220,132 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
     setExpandedWeeks(newExpanded);
   };
 
-  const exportToCSV = async () => {
+  const exportToExcel = async () => {
     try {
-      const csvData = [];
-      // Add summary
-      csvData.push(['Summary', '', '', '']);
-      csvData.push(['Total Students', summaryStats.totalStudents, '', '']);
-      csvData.push(['Total Working Days', summaryStats.totalWorkingDays, '', '']);
-      csvData.push(['Average Attendance', `${summaryStats.averageAttendance}%`, '', '']);
-      csvData.push(['Highest Attendance', `${summaryStats.highestAttendance.name} (${summaryStats.highestAttendance.percentage}%)`, '', '']);
-      csvData.push(['Lowest Attendance', `${summaryStats.lowestAttendance.name} (${summaryStats.lowestAttendance.percentage}%)`, '', '']);
-      csvData.push(['', '', '', '']);
-      // Add header
-      csvData.push(['Roll No', 'Name', 'Email', 'Present', 'Absent', 'OD', 'Holiday', 'Total Days', 'Attendance %']);
-      // Use appropriate data source
-      if(viewMode === 'single') {
+      const { exportToExcelWithLogo } = await import('../utils/excelExport');
+      
+      // Prepare data for export
+      let exportData = [];
+      
+      if (viewMode === 'single') {
         students.forEach(student => {
-          // Try to find student's record for selected date
           const found = attendanceHistory.find(
             rec => (rec.rollNo && rec.rollNo === student.rollNumber) ||
                     (rec.rollNumber && rec.rollNumber === student.rollNumber) ||
                     (rec.studentId && rec.studentId === student.studentId)
           );
-          const status = found ? (found.status ? found.status.toLowerCase() : '') : 'absent';
-        csvData.push([
-            student.rollNumber || '',
-            student.name || '',
-            student.email || '',
-            status === 'present' ? 1 : 0,
-            status === 'absent' ? 1 : 0,
-            status === 'od' ? 1 : 0,
-            status === 'holiday' ? 1 : 0,
-            1,  // Always one day in single mode
-            status === 'present' ? '100%' : '0%'
-        ]);
+          const status = found ? (found.status ? found.status.toLowerCase() : 'absent') : 'absent';
+          const presentDays = status === 'present' ? 1 : 0;
+          const absentDays = status === 'absent' ? 1 : 0;
+          const odDays = status === 'od' ? 1 : 0;
+          const holidayDays = status === 'holiday' ? 1 : 0;
+          const totalDays = 1;
+          const attendancePercentage = status === 'present' || status === 'od' ? 100 : 0;
+          
+          // Determine category
+          let category = 'Poor';
+          if (attendancePercentage >= 85) category = 'Excellent';
+          else if (attendancePercentage >= 75) category = 'Average';
+          
+          exportData.push({
+            'Roll Number': student.rollNumber || '',
+            'Student Name': student.name || '',
+            'Email': student.email || '',
+            'Class': classData ? `${classData.batch}_${classData.year}_${classData.semester}_${classData.section}` : '',
+            'Faculty': user?.name || 'Faculty',
+            'Total Working Days': totalDays,
+            'Days Present': presentDays + odDays,
+            'Days Absent': absentDays,
+            'OD Days': odDays,
+            'Holiday Days': holidayDays,
+            'Attendance %': attendancePercentage,
+            'Category': category,
+            'Status': status.charAt(0).toUpperCase() + status.slice(1)
+          });
       });
       } else {
-        // For weekly/monthly: use the processed rangeAttendanceData directly
-        console.log('📊 Export Debug - rangeAttendanceData:', rangeAttendanceData);
-        console.log('📊 Export Debug - rangeAttendanceData length:', rangeAttendanceData.length);
-        
-        // rangeAttendanceData now contains ALL students (with and without records)
-        // so we can use it directly without matching
-        rangeAttendanceData.forEach((student, index) => {
-          console.log(`📊 Export Debug - Student ${index}:`, {
-            rollNumber: student.rollNumber,
-            name: student.name,
-            present: student.present,
-            absent: student.absent,
-            od: student.od,
-            holiday: student.holiday,
-            totalDays: student.totalDays,
-            attendancePercentage: student.attendancePercentage
-          });
+        // For weekly/monthly: use the processed rangeAttendanceData
+        rangeAttendanceData.forEach((student) => {
+          const presentDays = student.present || 0;
+          const absentDays = student.absent || 0;
+          const odDays = student.od || 0;
+          const holidayDays = student.holiday || 0;
+          const totalDays = student.totalDays || 0;
+          const attendancePercentage = student.attendancePercentage || 0;
           
-          csvData.push([
-            student.rollNumber || '',
-            student.name || '',
-            student.email || '',
-            student.present || 0,
-            student.absent || 0,
-            student.od || 0,
-            student.holiday || 0,
-            student.totalDays || 0,
-            `${student.attendancePercentage || 0}%`
-          ]);
+          // Determine category
+          let category = 'Poor';
+          if (attendancePercentage >= 85) category = 'Excellent';
+          else if (attendancePercentage >= 75) category = 'Average';
+          
+          exportData.push({
+            'Roll Number': student.rollNumber || '',
+            'Student Name': student.name || '',
+            'Email': student.email || '',
+            'Class': classData ? `${classData.batch}_${classData.year}_${classData.semester}_${classData.section}` : '',
+            'Faculty': user?.name || 'Faculty',
+            'Total Working Days': totalDays,
+            'Days Present': presentDays + odDays,
+            'Days Absent': absentDays,
+            'OD Days': odDays,
+            'Holiday Days': holidayDays,
+            'Attendance %': attendancePercentage,
+            'Category': category
+          });
         });
       }
-      const csvContent = csvData.map(row => 
-        row.map(field => `"${field}"`).join(',')
-      ).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `attendance-history-${classData.classId}-${viewMode}-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      onToast('CSV file downloaded successfully!', 'success');
+      
+      // Prepare date range string
+      let dateRangeStr = '';
+      if (viewMode === 'single' && singleDate) {
+        const date = new Date(singleDate);
+        dateRangeStr = date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } else if ((viewMode === 'weekly' || viewMode === 'monthly') && dateRange.startDate && dateRange.endDate) {
+        const start = new Date(dateRange.startDate);
+        const end = new Date(dateRange.endDate);
+        dateRangeStr = `${start.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })} to ${end.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+      }
+      
+      // Calculate summary statistics
+      const totalStudents = exportData.length;
+      const totalPresent = exportData.reduce((sum, s) => sum + (s['Days Present'] || 0), 0);
+      const totalAbsent = exportData.reduce((sum, s) => sum + (s['Days Absent'] || 0), 0);
+      const avgAttendance = exportData.length > 0 
+        ? exportData.reduce((sum, s) => sum + (s['Attendance %'] || 0), 0) / exportData.length 
+        : 0;
+      
+      let overallStatus = 'Poor';
+      if (avgAttendance >= 85) overallStatus = 'Excellent';
+      else if (avgAttendance >= 75) overallStatus = 'Average';
+      
+      // Export to Excel
+      await exportToExcelWithLogo(
+        exportData,
+        'Attendance_History',
+        'Attendance History',
+        {
+          reportTitle: 'Student Attendance Report',
+          department: user?.department || classData?.department || '',
+          batch: classData?.batch || '',
+          year: classData?.year || '',
+          semester: classData?.semester || '',
+          section: classData?.section || '',
+          dateRange: dateRangeStr,
+          facultyName: user?.name || 'Faculty',
+          summary: {
+            totalStudents,
+            totalPresent,
+            totalAbsent,
+            averageAttendance: Math.round(avgAttendance * 10) / 10,
+            overallStatus
+          }
+        }
+      );
+      
+      onToast('Excel file downloaded successfully!', 'success');
     } catch (error) {
-      console.error('Error exporting CSV:', error);
-      onToast('Error exporting CSV file', 'error');
+      console.error('Error exporting to Excel:', error);
+      onToast('Error exporting Excel file', 'error');
     }
   };
 
@@ -2255,14 +2401,14 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                 Refresh
               </button>
               <button
-                onClick={exportToCSV}
+                onClick={exportToExcel}
                 disabled={false}
                 className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Export CSV
+                📊 Export Excel
               </button>
             </div>
           </div>
@@ -2375,30 +2521,50 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
 
           {/* Summary Cards */}
           {(viewMode === 'single' ? attendanceHistory.length > 0 : rangeAttendanceData.length > 0) && (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h3 className="text-sm font-medium text-blue-900">Total Students</h3>
                 <p className="text-2xl font-bold text-blue-600">{summaryStats.totalStudents}</p>
               </div>
               <div className="bg-green-50 p-4 rounded-lg">
                 <h3 className="text-sm font-medium text-green-900">
-                  {viewMode === 'single' ? 'Present Today' : 'Working Days'}
+                  {viewMode === 'single' ? 'Present (incl. OD)' : 'Working Days'}
                 </h3>
                 <p className="text-2xl font-bold text-green-600">
                   {viewMode === 'single' ? 
-                    (attendanceHistory.filter(r => r.status === 'Present').length) : 
+                    (attendanceHistory.filter(r => {
+                      const status = r.status?.toLowerCase() || '';
+                      return status === 'present' || status === 'od';
+                    }).length) : 
                     summaryStats.totalWorkingDays
+                  }
+                </p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-blue-900">
+                  {viewMode === 'single' ? 'OD Today' : 'Avg Attendance'}
+                </h3>
+                <p className="text-2xl font-bold text-blue-600">
+                  {viewMode === 'single' ? 
+                    (attendanceHistory.filter(r => {
+                      const status = r.status?.toLowerCase() || '';
+                      return status === 'od' || status === 'onduty';
+                    }).length) : 
+                    `${summaryStats.averageAttendance}%`
                   }
                 </p>
               </div>
               <div className="bg-purple-50 p-4 rounded-lg">
                 <h3 className="text-sm font-medium text-purple-900">
-                  {viewMode === 'single' ? 'Absent Today' : 'Avg Attendance'}
+                  {viewMode === 'single' ? 'Absent Today' : 'Highest'}
                 </h3>
                 <p className="text-2xl font-bold text-purple-600">
                   {viewMode === 'single' ? 
-                    (attendanceHistory.filter(r => r.status === 'Absent').length) : 
-                    `${summaryStats.averageAttendance}%`
+                    (attendanceHistory.filter(r => {
+                      const status = r.status?.toLowerCase() || '';
+                      return status === 'absent';
+                    }).length) : 
+                    summaryStats.highestAttendance.name || '-'
                   }
                 </p>
               </div>
@@ -2408,8 +2574,13 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                 </h3>
                 <p className="text-2xl font-bold text-yellow-600">
                   {viewMode === 'single' ? 
-                    `${summaryStats.averageAttendance}%` : 
-                    summaryStats.highestAttendance.name
+                    (attendanceHistory.length > 0 
+                      ? `${Math.round((attendanceHistory.filter(r => {
+                          const status = r.status?.toLowerCase() || '';
+                          return status === 'present' || status === 'od';
+                        }).length / attendanceHistory.length) * 100)}%`
+                      : '0%') : 
+                    summaryStats.highestAttendance.name || '-'
                   }
                 </p>
                 {viewMode !== 'single' && (
@@ -2422,8 +2593,15 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                 </h3>
                 <p className="text-lg font-bold text-red-600">
                   {viewMode === 'single' ? 
-                    (summaryStats.averageAttendance >= 75 ? 'Good' : summaryStats.averageAttendance >= 50 ? 'Average' : 'Poor') :
-                    summaryStats.lowestAttendance.name
+                    (() => {
+                      const presentAndOD = attendanceHistory.filter(r => {
+                        const status = r.status?.toLowerCase() || '';
+                        return status === 'present' || status === 'od';
+                      }).length;
+                      const percentage = attendanceHistory.length > 0 ? (presentAndOD / attendanceHistory.length) * 100 : 0;
+                      return percentage >= 75 ? 'Good' : percentage >= 50 ? 'Average' : 'Poor';
+                    })() :
+                    summaryStats.lowestAttendance.name || '-'
                   }
                 </p>
                 {viewMode !== 'single' && (

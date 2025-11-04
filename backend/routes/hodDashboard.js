@@ -70,7 +70,9 @@ router.get('/analytics', authenticate, hodAndAbove, async (req, res) => {
       if (record.records && Array.isArray(record.records)) {
         record.records.forEach(studentRecord => {
           classData.totalStudents++;
-          if (studentRecord.status === 'present') {
+          const status = studentRecord.status && studentRecord.status.toLowerCase();
+          // Include OD as present
+          if (status === 'present' || status === 'od' || status === 'onduty') {
             classData.totalPresent++;
           } else {
             classData.totalAbsent++;
@@ -100,7 +102,9 @@ router.get('/analytics', authenticate, hodAndAbove, async (req, res) => {
         
         if (record.records && Array.isArray(record.records)) {
           record.records.forEach(studentRecord => {
-            if (studentRecord.status === 'present') {
+            const status = studentRecord.status && studentRecord.status.toLowerCase();
+            // Include OD as present
+            if (status === 'present' || status === 'od' || status === 'onduty') {
               facultyData.totalPresent++;
             } else {
               facultyData.totalAbsent++;
@@ -122,7 +126,9 @@ router.get('/analytics', authenticate, hodAndAbove, async (req, res) => {
       const monthData = monthlyTrendsMap.get(monthKey);
       if (record.records && Array.isArray(record.records)) {
         record.records.forEach(studentRecord => {
-          if (studentRecord.status === 'present') {
+          const status = studentRecord.status && studentRecord.status.toLowerCase();
+          // Include OD as present
+          if (status === 'present' || status === 'od' || status === 'onduty') {
             monthData.totalPresent++;
           } else {
             monthData.totalAbsent++;
@@ -375,15 +381,21 @@ router.get('/defaulters', authenticate, hodAndAbove, async (req, res) => {
               classId: record.classId,
               totalSessions: 0,
               attendedSessions: 0,
-              absentSessions: 0
+              absentSessions: 0,
+              odSessions: 0
             });
           }
 
           const student = studentMap.get(studentId);
           student.totalSessions++;
 
-          if (studentRecord.status === 'present') {
+          const status = studentRecord.status && studentRecord.status.toLowerCase();
+          // Include OD as present for attendance calculation
+          if (status === 'present') {
             student.attendedSessions++;
+          } else if (status === 'od' || status === 'onduty') {
+            student.attendedSessions++; // OD counts as present
+            student.odSessions++;
           } else {
             student.absentSessions++;
           }
@@ -391,16 +403,18 @@ router.get('/defaulters', authenticate, hodAndAbove, async (req, res) => {
       }
     });
 
-    // Filter defaulters
+    // Filter defaulters (OD is considered as present in percentage calculation)
     const defaulters = Array.from(studentMap.values())
       .map(student => {
+        // attendedSessions already includes OD, so percentage is correct
         const percentage = student.totalSessions > 0
           ? ((student.attendedSessions / student.totalSessions) * 100).toFixed(2)
           : 0;
 
         return {
           ...student,
-          attendancePercentage: parseFloat(percentage)
+          attendancePercentage: parseFloat(percentage),
+          odSessions: student.odSessions || 0
         };
       })
       .filter(student => student.attendancePercentage < attendanceThreshold)
@@ -525,7 +539,9 @@ router.get('/student-reports', authenticate, hodAndAbove, async (req, res) => {
           const student = studentMap.get(studentId);
           student.totalSessions++;
 
-          if (studentRecord.status === 'present') {
+          // Check status (OD is considered as present)
+          const status = studentRecord.status && studentRecord.status.toLowerCase();
+          if (status === 'present' || status === 'od' || status === 'onduty') {
             student.attendedSessions++;
           } else {
             student.absentSessions++;
@@ -647,16 +663,29 @@ router.get('/student-reports/:studentId', authenticate, hodAndAbove, async (req,
       );
 
       if (studentRecord) {
+        // Normalize status to title case
+        let normalizedStatus = studentRecord.status || 'Not Marked';
+        const statusLower = studentRecord.status && studentRecord.status.toLowerCase();
+        if (statusLower === 'present') {
+          normalizedStatus = 'Present';
+        } else if (statusLower === 'od' || statusLower === 'onduty') {
+          normalizedStatus = 'OD';
+        } else if (statusLower === 'absent') {
+          normalizedStatus = 'Absent';
+        }
+
         records.push({
           date: record.date,
           classId: record.classId,
           facultyName: record.facultyId?.name || 'Unknown',
-          status: studentRecord.status,
+          status: normalizedStatus,
           reason: studentRecord.reason || '',
           facultyNote: record.note || ''
         });
 
-        if (studentRecord.status === 'present') {
+        // Include OD as present for calculations
+        const status = studentRecord.status && studentRecord.status.toLowerCase();
+        if (status === 'present' || status === 'od' || status === 'onduty') {
           totalPresent++;
           currentConsecutiveAbsences = 0;
         } else {
