@@ -6,5 +6,5 @@ export default {
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_secret_key_change_in_production',
   NODE_ENV: process.env.NODE_ENV || 'development',
   // Frontend URL for CORS (set in .env file or use default Vercel URL)
-  FRONTEND_URL: process.env.FRONTEND_URL || 'https://attendance-project-qn03ugnuu-karthik-ks-projects-4c2799af.vercel.app'
+  FRONTEND_URL: process.env.FRONTEND_URL || 'https://attendance-project-tau.vercel.app'
 };

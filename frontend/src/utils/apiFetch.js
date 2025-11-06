@@ -6,6 +6,12 @@ if (!axios.defaults.baseURL) {
   axios.defaults.baseURL = API_BASE_URL;
 }
 
+// Helper function to get full API URL
+export const getApiUrl = (path) => {
+  if (path.startsWith('http')) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : '/' + path}`;
+};
+
 export const apiFetch = async (options) => {
   const {
     url,
@@ -23,7 +29,9 @@ export const apiFetch = async (options) => {
   }
 
   try {
-    const res = await axios({ url, method, data, params, headers, responseType });
+    // Ensure URL is absolute (prepend API_BASE_URL if relative)
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.startsWith('/') ? url : '/' + url}`;
+    const res = await axios({ url: fullUrl, method, data, params, headers, responseType });
     return res;
   } catch (error) {
     // If unauthorized, try refresh flow
@@ -38,7 +46,8 @@ export const apiFetch = async (options) => {
           // Update headers with new token before retry
           headers.Authorization = `Bearer ${newAccess}`;
           // retry with updated headers
-          const retry = await axios({ url, method, data, params, headers, responseType });
+          const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.startsWith('/') ? url : '/' + url}`;
+          const retry = await axios({ url: fullUrl, method, data, params, headers, responseType });
           return retry;
         }
       } catch (e) {

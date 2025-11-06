@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
 import ProfileModal from './ProfileModal';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const EnhancedHODNavbar = () => {
   const { user, logout } = useAuth();
@@ -153,7 +154,7 @@ const EnhancedHODNavbar = () => {
                   <div className="relative">
                     {profileData?.profilePhoto ? (
                       <img
-                        src={`http://localhost:5000${profileData.profilePhoto}`}
+                        src={`${API_BASE_URL}${profileData.profilePhoto}`}
                         alt="Profile"
                         className="w-14 h-14 rounded-full object-cover ring-4 ring-indigo-300 ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all"
                       />
@@ -196,7 +197,7 @@ const EnhancedHODNavbar = () => {
                       <div className="flex items-center space-x-4 mb-4">
                         {profileData?.profilePhoto ? (
                           <img
-                            src={`http://localhost:5000${profileData.profilePhoto}`}
+                            src={`${API_BASE_URL}${profileData.profilePhoto}`}
                             alt="Profile"
                             className="w-16 h-16 rounded-full object-cover ring-2 ring-white shadow-lg"
                           />

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import ReasonSubmissionModal from '../../components/ReasonSubmissionModal';
 import HolidayNotificationCard from '../../components/HolidayNotificationCard';
 import AbsenceReasonModal from '../../components/AbsenceReasonModal';
+import { getApiUrl } from '../../utils/apiFetch';
 
 const StudentDashboard = () => {
   const { user, logout } = useAuth();
@@ -72,7 +73,7 @@ const StudentDashboard = () => {
       console.log('📡 Fetching attendance data for user:', user.id);
       
       // Fetch student profile to get classId
-      const profileRes = await fetch(`/api/students/${user.id}/profile`, {
+      const profileRes = await fetch(getApiUrl(`/api/students/${user.id}/profile`), {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
       });
       if (profileRes.ok) {
@@ -83,7 +84,7 @@ const StudentDashboard = () => {
       }
       
       // Fetch attendance data
-      const res = await fetch(`/api/attendance/student/${user.id}`, {
+      const res = await fetch(getApiUrl(`/api/attendance/student/${user.id}`), {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
       });
       const data = await res.json();

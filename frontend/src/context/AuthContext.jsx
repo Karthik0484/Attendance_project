@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
       if (accessToken) {
         try {
           console.log('Loading user with access token');
-          const res = await axios.get('/api/auth/me');
+          const res = await axios.get(`${API_BASE_URL}/api/auth/me`);
           console.log('User loaded successfully:', res.data.user);
           dispatch({
             type: 'LOGIN_SUCCESS',
@@ -101,7 +101,7 @@ export const AuthProvider = ({ children }) => {
           // Try to refresh token if access token expired
           if (error.response?.status === 401 && refreshToken) {
             try {
-              const refreshRes = await axios.post('/api/auth/refresh', {
+              const refreshRes = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
                 refreshToken
               });
               
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }) => {
               });
               
               // Retry loading user
-              const userRes = await axios.get('/api/auth/me');
+              const userRes = await axios.get(`${API_BASE_URL}/api/auth/me`);
               dispatch({
                 type: 'LOGIN_SUCCESS',
                 payload: { 
@@ -150,7 +150,7 @@ export const AuthProvider = ({ children }) => {
       
       console.log('📤 Frontend: Sending login request:', loginData);
       
-      const res = await axios.post('/api/auth/login', loginData);
+      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, loginData);
       console.log('✅ Frontend: Login successful:', res.data);
       
       if (res.data.success) {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { apiFetch } from '../utils/apiFetch';
 import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
   console.log('🎨 ProfileModal received profileData:', profileData);
@@ -22,7 +23,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [photoPreview, setPhotoPreview] = useState(profileData?.profilePhoto ? `http://localhost:5000${profileData.profilePhoto}` : null);
+  const [photoPreview, setPhotoPreview] = useState(profileData?.profilePhoto ? `${API_BASE_URL}${profileData.profilePhoto}` : null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Update formData and photoPreview when profileData changes
@@ -34,7 +35,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
         mobile: profileData.phone || '',
         address: profileData.address || ''
       });
-      setPhotoPreview(profileData.profilePhoto ? `http://localhost:5000${profileData.profilePhoto}` : null);
+      setPhotoPreview(profileData.profilePhoto ? `${API_BASE_URL}${profileData.profilePhoto}` : null);
     }
   }, [profileData]);
 
@@ -81,7 +82,7 @@ const ProfileModal = ({ profileData, summary, onClose, onUpdate }) => {
       if (response.data.success) {
         setSuccess('Profile photo uploaded successfully!');
         const photoPath = isHOD ? response.data.data.profilePhoto : response.data.data.profilePhoto;
-        setPhotoPreview(`http://localhost:5000${photoPath}`);
+        setPhotoPreview(`${API_BASE_URL}${photoPath}`);
         // Update parent component data without closing modal
         onUpdate();
         // Scroll to top of modal to show success message

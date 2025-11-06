@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
 import StudentNotificationDropdown from './StudentNotificationDropdown';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const EnhancedStudentNavbar = () => {
   const { user, logout } = useAuth();
@@ -120,7 +121,7 @@ const EnhancedStudentNavbar = () => {
                   <div className="relative">
                     {studentData?.profilePhoto ? (
                       <img
-                        src={`http://localhost:5000${studentData.profilePhoto}`}
+                        src={`${API_BASE_URL}${studentData.profilePhoto}`}
                         alt="Profile"
                         className="w-14 h-14 rounded-full object-cover ring-4 ring-green-300 ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all"
                       />
@@ -171,7 +172,7 @@ const EnhancedStudentNavbar = () => {
                       <div className="flex items-center space-x-4 mb-4">
                         {studentData?.profilePhoto ? (
                           <img
-                            src={`http://localhost:5000${studentData.profilePhoto}`}
+                            src={`${API_BASE_URL}${studentData.profilePhoto}`}
                             alt="Profile"
                             className="w-16 h-16 rounded-full object-cover ring-2 ring-white shadow-lg"
                           />

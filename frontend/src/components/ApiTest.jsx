@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getApiUrl } from '../utils/apiFetch';
 
 const ApiTest = () => {
   const [testResult, setTestResult] = useState('');
@@ -10,12 +11,12 @@ const ApiTest = () => {
     
     try {
       // Test health endpoint first
-      const healthResponse = await fetch('/api/health');
+      const healthResponse = await fetch(getApiUrl('/api/health'));
       const healthData = await healthResponse.json();
       setTestResult(`Health check: ${JSON.stringify(healthData, null, 2)}`);
       
       // Test auth endpoint
-      const authResponse = await fetch('/api/auth/me', {
+      const authResponse = await fetch(getApiUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         }
@@ -35,7 +36,7 @@ const ApiTest = () => {
     setTestResult('Testing user creation...');
     
     try {
-      const response = await fetch('/api/auth/users/create', {
+      const response = await fetch(getApiUrl('/api/auth/users/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

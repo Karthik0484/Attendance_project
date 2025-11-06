@@ -63,7 +63,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
-  'https://attendance-project-qn03ugnuu-karthik-ks-projects-4c2799af.vercel.app', // Vercel frontend URL
+  'https://attendance-project-tau.vercel.app', // Vercel production frontend URL
+  'https://attendance-project-qn03ugnuu-karthik-ks-projects-4c2799af.vercel.app', // Vercel preview URL
   process.env.FRONTEND_URL // Additional frontend URL from environment variable
 ].filter(Boolean); // Remove undefined values
 

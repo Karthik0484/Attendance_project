@@ -4,6 +4,7 @@ import SemesterCard from '../../components/SemesterCard';
 import HolidayNotificationCard from '../../components/HolidayNotificationCard';
 import EnhancedStudentNavbar from '../../components/EnhancedStudentNavbar';
 import Footer from '../../components/Footer';
+import { getApiUrl } from '../../utils/apiFetch';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -26,7 +27,7 @@ const StudentDashboard = () => {
         userRole: user.role
       });
       
-      const res = await fetch(`/api/students/${user.id}/semesters`, {
+      const res = await fetch(getApiUrl(`/api/students/${user.id}/semesters`), {
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
           'Content-Type': 'application/json'

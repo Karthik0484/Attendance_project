@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Toast from './Toast';
 import usePreventBodyScroll from '../hooks/usePreventBodyScroll';
+import { getApiUrl } from '../utils/apiFetch';
 
 const CreateFacultyModal = ({ isOpen, onClose, onFacultyCreated }) => {
   const { user } = useAuth();
@@ -80,7 +81,7 @@ const CreateFacultyModal = ({ isOpen, onClose, onFacultyCreated }) => {
     try {
       console.log('Creating faculty with data:', formData);
       
-      const response = await fetch('/api/faculty/create', {
+      const response = await fetch(getApiUrl('/api/faculty/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/apiFetch';
 import NotificationCenter from './NotificationCenter';
 import ProfileModal from './ProfileModal';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const EnhancedFacultyNavbar = () => {
   const { user, logout } = useAuth();
@@ -132,7 +133,7 @@ const EnhancedFacultyNavbar = () => {
                   <div className="relative">
                     {profileData?.profilePhoto ? (
                       <img
-                        src={`http://localhost:5000${profileData.profilePhoto}`}
+                        src={`${API_BASE_URL}${profileData.profilePhoto}`}
                         alt="Profile"
                         className="w-14 h-14 rounded-full object-cover ring-4 ring-blue-300 ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all"
                       />
@@ -175,7 +176,7 @@ const EnhancedFacultyNavbar = () => {
                       <div className="flex items-center space-x-4 mb-4">
                         {profileData?.profilePhoto ? (
                           <img
-                            src={`http://localhost:5000${profileData.profilePhoto}`}
+                            src={`${API_BASE_URL}${profileData.profilePhoto}`}
                             alt="Profile"
                             className="w-16 h-16 rounded-full object-cover ring-2 ring-white shadow-lg"
                           />

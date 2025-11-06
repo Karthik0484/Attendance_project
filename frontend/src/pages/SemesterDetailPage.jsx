@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AbsenceReasonModal from '../components/AbsenceReasonModal';
+import { getApiUrl } from '../utils/apiFetch';
 
 const SemesterDetailPage = () => {
   const { semesterId } = useParams();
@@ -30,7 +31,7 @@ const SemesterDetailPage = () => {
 
       console.log('📊 Fetching semester attendance:', { userId: user.id, semesterId });
 
-      const res = await fetch(`/api/students/${user.id}/semesters/${semesterId}/attendance`, {
+      const res = await fetch(getApiUrl(`/api/students/${user.id}/semesters/${semesterId}/attendance`), {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` }
       });
 
