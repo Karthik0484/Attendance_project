@@ -2,13 +2,24 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import config from '../config/config.js';
 
-// Generate JWT tokens
-export const generateTokens = (userId) => {
-  const accessToken = jwt.sign({ id: userId }, config.JWT_SECRET, {
+// Generate JWT tokens - includes id and role
+export const generateTokens = async (userId) => {
+  // Fetch user to get role
+  const user = await User.findById(userId).select('role');
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const tokenPayload = {
+    id: userId,
+    role: user.role
+  };
+
+  const accessToken = jwt.sign(tokenPayload, config.JWT_SECRET, {
     expiresIn: '15m'
   });
   
-  const refreshToken = jwt.sign({ id: userId }, config.JWT_SECRET, {
+  const refreshToken = jwt.sign(tokenPayload, config.JWT_SECRET, {
     expiresIn: '7d'
   });
   

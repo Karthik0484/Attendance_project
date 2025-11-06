@@ -143,8 +143,9 @@ router.post('/login', [
 
     // Step 5: Generate tokens
     console.log('🎫 Generating JWT tokens...');
-    const { accessToken, refreshToken } = generateTokens(userByEmail._id);
+    const { accessToken, refreshToken } = await generateTokens(userByEmail._id);
     console.log('✅ Tokens generated successfully');
+    console.log('🔐 Token payload includes:', { id: userByEmail._id, role: userByEmail.role });
 
     // Step 6: Update last login
     userByEmail.lastLogin = new Date();
@@ -249,18 +250,29 @@ router.post('/refresh', async (req, res) => {
     const decoded = verifyToken(refreshToken);
     const user = await User.findById(decoded.id).select('-password');
 
-    if (!user || user.status !== 'active') {
+    if (!user) {
       return res.status(401).json({ 
         success: false,
         msg: 'Invalid refresh token' 
       });
     }
 
-    const { accessToken } = generateTokens(user._id);
+    // For HODs, allow inactive status (they have restricted access)
+    // For other roles, only allow active status
+    if (user.role !== 'hod' && user.status !== 'active') {
+      return res.status(401).json({ 
+        success: false,
+        msg: 'Account is inactive' 
+      });
+    }
+
+    // Generate new tokens with role included
+    const { accessToken, refreshToken: newRefreshToken } = await generateTokens(user._id);
 
     res.status(200).json({
       success: true,
-      accessToken
+      accessToken,
+      refreshToken: newRefreshToken // Optionally return new refresh token
     });
   } catch (error) {
     res.status(401).json({ 

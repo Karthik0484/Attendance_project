@@ -140,40 +140,43 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
         />
       )}
 
-      <div className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow duration-200">
+      <div className="bg-white rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition-shadow duration-200 w-full overflow-hidden">
         {/* Faculty Header */}
-        <div className="p-6">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center space-x-3 mb-2">
-                <h3 className="text-lg font-semibold text-gray-900">{faculty.name}</h3>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getActiveCount(), assignments.length)}`}>
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1 w-full">
+              {/* Name and Status Badge */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">{faculty.name}</h3>
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs sm:text-sm font-medium w-fit ${getStatusColor(getActiveCount(), assignments.length)}`}>
                   {getStatusText(getActiveCount(), assignments.length)}
                 </span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                <div className="flex items-center">
-                  <span className="font-medium mr-2">Position:</span>
-                  <span>{faculty.position}</span>
+              {/* Faculty Details - Vertical Stack on Mobile */}
+              <div className="flex flex-col space-y-1 text-sm text-gray-600 mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium text-gray-700">Position:</span>
+                  <span className="sm:ml-2">{faculty.position}</span>
                 </div>
-                <div className="flex items-center">
-                  <span className="font-medium mr-2">Email:</span>
-                  <span className="text-blue-600">{faculty.email}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium text-gray-700">Email:</span>
+                  <span className="text-blue-600 break-all sm:ml-2">{faculty.email}</span>
                 </div>
                 {faculty.phone && (
-                  <div className="flex items-center">
-                    <span className="font-medium mr-2">Phone:</span>
-                    <span>{faculty.phone}</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center">
+                    <span className="font-medium text-gray-700">Phone:</span>
+                    <span className="sm:ml-2">{faculty.phone}</span>
                   </div>
                 )}
-                <div className="flex items-center">
-                  <span className="font-medium mr-2">Department:</span>
-                  <span>{faculty.department}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center">
+                  <span className="font-medium text-gray-700">Department:</span>
+                  <span className="sm:ml-2">{faculty.department}</span>
                 </div>
               </div>
 
-              <div className="flex items-center text-sm text-gray-600 space-x-4">
+              {/* Class Statistics - Vertical Stack on Mobile */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-600">
                 <div className="flex items-center">
                   <span className="font-medium mr-2">Total Classes:</span>
                   <span className="font-semibold text-blue-600">{assignments.length}</span>
@@ -195,24 +198,24 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col space-y-2 ml-4">
+            {/* Action Buttons - Stack Vertically on Mobile */}
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 sm:ml-4 w-full sm:w-auto">
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
               >
                 {expanded ? 'Hide Details' : 'View Assignments'}
               </button>
               <button
                 onClick={() => setShowAssignmentModal(true)}
-                className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors"
+                className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
               >
                 Assign Class
               </button>
               <button
                 onClick={() => onDelete(faculty._id, faculty.name)}
                 disabled={loading}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                className={`w-full sm:w-auto px-4 py-2 text-sm sm:text-base rounded-lg transition-colors font-medium ${
                   loading 
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                     : 'bg-red-100 text-red-700 hover:bg-red-200'
@@ -227,13 +230,13 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
         {/* Expanded Class Assignments */}
         {expanded && (
           <div className="border-t border-gray-200 bg-gray-50">
-            <div className="p-6">
-              <h4 className="text-md font-semibold text-gray-900 mb-4">Assigned Classes</h4>
+            <div className="p-4 sm:p-6">
+              <h4 className="text-base sm:text-md font-semibold text-gray-900 mb-4">Assigned Classes</h4>
               
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                  <span className="ml-2 text-gray-600">Loading assignments...</span>
+                  <span className="ml-2 text-sm sm:text-base text-gray-600">Loading assignments...</span>
                 </div>
               ) : assignments.length > 0 ? (
                 <div className="space-y-3">
@@ -247,20 +250,20 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
                     return (
                       <div
                         key={assignment._id}
-                        className={`rounded-lg border p-4 flex items-center justify-between ${
+                        className={`rounded-lg border p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
                           isActive ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-300'
                         }`}
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <span className={`font-medium ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
+                        <div className="flex-1 w-full">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                            <span className={`text-sm sm:text-base font-medium break-words ${isActive ? 'text-gray-900' : 'text-gray-600'}`}>
                               {formatClassDisplay(assignment)}
                             </span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColor}`}>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium w-fit ${statusColor}`}>
                               {statusIcon} {assignment.status || (isActive ? 'Active' : 'Inactive')}
                             </span>
                           </div>
-                          <div className="text-sm text-gray-500 space-y-0.5">
+                          <div className="text-xs sm:text-sm text-gray-500 space-y-0.5">
                             <div>Assigned on {new Date(assignment.assignedDate).toLocaleDateString()}</div>
                             {!isActive && assignment.deactivatedDate && (
                               <div className="text-red-600">
@@ -270,17 +273,17 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center justify-start sm:justify-end">
                           {isActive && (
                             <button
                               onClick={() => handleRemoveAssignmentClick(assignment)}
-                              className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
+                              className="w-full sm:w-auto px-3 py-2 text-xs sm:text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium"
                             >
                               Remove
                             </button>
                           )}
                           {!isActive && (
-                            <span className="px-3 py-1 text-sm bg-gray-100 text-gray-500 rounded-md cursor-not-allowed">
+                            <span className="w-full sm:w-auto px-3 py-2 text-xs sm:text-sm bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed text-center">
                               Archived
                             </span>
                           )}
@@ -291,10 +294,10 @@ const FacultyCard = ({ faculty, onUpdate, onDelete }) => {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <div className="text-gray-500 mb-2">No class assignments found</div>
+                  <div className="text-sm sm:text-base text-gray-500 mb-4">No class assignments found</div>
                   <button
                     onClick={() => setShowAssignmentModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                   >
                     Assign First Class
                   </button>

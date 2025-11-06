@@ -6,6 +6,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { isAuthenticated, user, loading } = useAuth();
   const location = useLocation();
 
+  // Show loading screen while checking authentication
+  // This prevents white screen flicker
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -17,8 +19,16 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  // Only redirect if loading is complete and user is not authenticated
+  // This prevents infinite redirect loops
+  if (!loading && !isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // If still loading or no user, don't render children yet
+  // This prevents white screen flash
+  if (!user) {
+    return null;
   }
 
   // Redirect inactive HODs to restricted dashboard

@@ -33,8 +33,11 @@ const authReducer = (state, action) => {
       };
     case 'LOGIN_FAIL':
     case 'LOGOUT':
+      // Clear tokens and authorization header
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      delete axios.defaults.headers.common['Authorization'];
+      
       return {
         ...state,
         user: null,
@@ -56,6 +59,8 @@ const authReducer = (state, action) => {
       };
     case 'UPDATE_TOKENS':
       localStorage.setItem('accessToken', action.payload.accessToken);
+      // Update authorization header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${action.payload.accessToken}`;
       return {
         ...state,
         accessToken: action.payload.accessToken
@@ -78,16 +83,32 @@ export const AuthProvider = ({ children }) => {
   }, [state.accessToken]);
 
   // Load user on app start - only run once
+  // This prevents infinite redirects by properly handling loading state
   useEffect(() => {
+    let isMounted = true; // Flag to prevent state updates after unmount
+    
     const loadUser = async () => {
       const accessToken = localStorage.getItem('accessToken');
       const refreshToken = localStorage.getItem('refreshToken');
       
-      if (accessToken) {
-        try {
-          console.log('Loading user with access token');
-          const res = await axios.get(`${API_BASE_URL}/api/auth/me`);
-          console.log('User loaded successfully:', res.data.user);
+      if (!accessToken) {
+        // No token - user is not authenticated
+        if (isMounted) {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+        return;
+      }
+
+      try {
+        console.log('🔐 Loading user with access token');
+        
+        // Set authorization header
+        axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        
+        const res = await axios.get(`${API_BASE_URL}/api/auth/me`);
+        
+        if (isMounted && res.data && res.data.user) {
+          console.log('✅ User loaded successfully:', res.data.user);
           dispatch({
             type: 'LOGIN_SUCCESS',
             payload: { 
@@ -96,52 +117,103 @@ export const AuthProvider = ({ children }) => {
               user: res.data.user 
             }
           });
-        } catch (error) {
-          console.error('Error loading user:', error.response?.data || error.message);
-          
-          // Try to refresh token if access token expired
-          if (error.response?.status === 401 && refreshToken) {
-            try {
-              const refreshRes = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
-                refreshToken
-              });
+        }
+      } catch (error) {
+        console.error('❌ Error loading user:', error.response?.data || error.message);
+        
+        // Check if token is expired
+        const errorMsg = error.response?.data?.msg || '';
+        const isTokenExpired = error.response?.status === 401 && 
+          (errorMsg.includes('expired') || errorMsg.includes('Token expired') || errorMsg === 'Token expired.');
+        
+        // Try to refresh token if access token expired
+        if (isTokenExpired && refreshToken) {
+          try {
+            console.log('🔄 Attempting token refresh...');
+            
+            // Remove expired access token before refresh
+            localStorage.removeItem('accessToken');
+            delete axios.defaults.headers.common['Authorization'];
+            
+            const refreshRes = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+              refreshToken
+            });
+            
+            if (refreshRes.data && refreshRes.data.accessToken) {
+              const newAccessToken = refreshRes.data.accessToken;
+              const newRefreshToken = refreshRes.data.refreshToken || refreshToken; // Use new refresh token if provided
               
-              dispatch({
-                type: 'UPDATE_TOKENS',
-                payload: { accessToken: refreshRes.data.accessToken }
-              });
+              localStorage.setItem('accessToken', newAccessToken);
+              if (refreshRes.data.refreshToken) {
+                localStorage.setItem('refreshToken', newRefreshToken);
+              }
+              axios.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
               
-              // Retry loading user
+              // Retry loading user with new token
               const userRes = await axios.get(`${API_BASE_URL}/api/auth/me`);
-              dispatch({
-                type: 'LOGIN_SUCCESS',
-                payload: { 
-                  accessToken: refreshRes.data.accessToken, 
-                  refreshToken, 
-                  user: userRes.data.user 
-                }
-              });
-            } catch (refreshError) {
-              console.error('Token refresh failed:', refreshError);
-              dispatch({ type: 'LOGOUT', payload: 'Session expired' });
+              
+              if (isMounted && userRes.data && userRes.data.user) {
+                dispatch({
+                  type: 'LOGIN_SUCCESS',
+                  payload: { 
+                    accessToken: newAccessToken, 
+                    refreshToken: newRefreshToken, 
+                    user: userRes.data.user 
+                  }
+                });
+                return;
+              }
             }
-          } else {
-            dispatch({ type: 'LOGOUT', payload: 'Authentication failed' });
+          } catch (refreshError) {
+            console.error('❌ Token refresh failed:', refreshError);
+            // Clear all tokens if refresh fails
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            delete axios.defaults.headers.common['Authorization'];
+            
+            if (isMounted) {
+              dispatch({ type: 'LOGOUT', payload: 'Session expired. Please login again.' });
+            }
+            return;
           }
         }
-      } else {
-        console.log('No access token found, setting loading to false');
-        dispatch({ type: 'SET_LOADING', payload: false });
+        
+        // Authentication failed - clear tokens
+        if (isMounted) {
+          // Clear tokens if authentication fails
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          delete axios.defaults.headers.common['Authorization'];
+          
+          dispatch({ type: 'LOGOUT', payload: 'Authentication failed. Please login again.' });
+        }
       }
     };
 
     loadUser();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, []); // Empty dependency array - only run once on mount
 
   const login = async (email, password, role) => {
     try {
       console.log('🔐 Frontend: Attempting login with:', { email, role });
       dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Clear any existing expired tokens before login
+      // This prevents issues with expired tokens from previous sessions
+      const oldAccessToken = localStorage.getItem('accessToken');
+      const oldRefreshToken = localStorage.getItem('refreshToken');
+      
+      if (oldAccessToken || oldRefreshToken) {
+        console.log('🧹 Clearing old tokens before new login...');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        delete axios.defaults.headers.common['Authorization'];
+      }
       
       const loginData = { 
         email: email.toLowerCase().trim(), 
@@ -160,6 +232,13 @@ export const AuthProvider = ({ children }) => {
       console.log('✅ Frontend: Login successful:', res.data);
       
       if (res.data.success) {
+        // Store new tokens
+        localStorage.setItem('accessToken', res.data.accessToken);
+        localStorage.setItem('refreshToken', res.data.refreshToken);
+        
+        // Set authorization header
+        axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.accessToken}`;
+        
         dispatch({
           type: 'LOGIN_SUCCESS',
           payload: {
@@ -175,6 +254,11 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('❌ Frontend: Login error:', error.response?.data || error.message);
+      
+      // Clear any tokens on login failure
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      delete axios.defaults.headers.common['Authorization'];
       
       // Handle specific error messages from backend
       let message = 'Login failed';
@@ -199,6 +283,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Clear tokens and authorization header
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    delete axios.defaults.headers.common['Authorization'];
+    
     dispatch({ type: 'LOGOUT', payload: null });
   };
 
@@ -227,3 +316,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

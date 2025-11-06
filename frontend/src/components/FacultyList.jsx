@@ -290,8 +290,8 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
         onClear={handleClear}
       />
 
-      {/* Faculty Cards */}
-      <div className="space-y-4">
+      {/* Faculty Cards - Responsive Layout */}
+      <div className="flex flex-col gap-4 sm:gap-6">
         {filteredFaculties.length > 0 ? (
           filteredFaculties.map((faculty) => (
             <FacultyCard
@@ -332,28 +332,28 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
         )}
         </div>
 
-        {/* Pagination */}
+        {/* Pagination - Responsive */}
         {totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-            className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              
-          <span className="px-3 py-2 text-sm text-gray-700">
-            Page {currentPage} of {totalPages}
-          </span>
-              
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-            className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-2 pt-4">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              Previous
+            </button>
+            
+            <span className="px-3 py-2 text-sm sm:text-base text-gray-700 font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
