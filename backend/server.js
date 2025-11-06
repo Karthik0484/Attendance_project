@@ -89,7 +89,8 @@ app.use(cors({
     });
     
     // Also allow Vercel preview deployments (they have different subdomains)
-    const isVercelDomain = origin.includes('vercel.app') || origin.includes('.vercel.app');
+    // Match any *.vercel.app domain
+    const isVercelDomain = /\.vercel\.app$/.test(origin);
     
     if (isAllowed || isVercelDomain || allowedOrigins.length === 0) {
       callback(null, true);

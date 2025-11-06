@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Toast from './Toast';
 import FacultyCard from './FacultyCard';
 import FacultyFilters from './FacultyFilters';
+import { getApiUrl } from '../utils/apiFetch';
 
 const FacultyList = ({ refreshTrigger, userRole, department }) => {
   const [faculties, setFaculties] = useState([]);
@@ -26,7 +27,7 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
       setLoading(true);
       const accessToken = localStorage.getItem('accessToken');
       console.log('Fetching faculties with token:', !!accessToken);
-      const response = await fetch(`/api/faculty/list?page=${page}&limit=20&search=${search}`, {
+      const response = await fetch(getApiUrl(`/api/faculty/list?page=${page}&limit=20&search=${search}`), {
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
@@ -159,7 +160,7 @@ const FacultyList = ({ refreshTrigger, userRole, department }) => {
     });
 
     try {
-      const response = await fetch(`/api/faculty/${facultyToDelete.id}`, {
+      const response = await fetch(getApiUrl(`/api/faculty/${facultyToDelete.id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`

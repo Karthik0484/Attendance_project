@@ -2,8 +2,9 @@ import { createContext, useContext, useReducer, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/apiConfig';
 
-// Set axios base URL
+// Set axios base URL (ensure no trailing slash)
 axios.defaults.baseURL = API_BASE_URL;
+axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 const AuthContext = createContext();
 
@@ -149,8 +150,13 @@ export const AuthProvider = ({ children }) => {
       };
       
       console.log('📤 Frontend: Sending login request:', loginData);
+      console.log('🔗 API Base URL:', API_BASE_URL);
       
-      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, loginData);
+      // Construct full URL to avoid double slash issues
+      const loginUrl = `${API_BASE_URL}/api/auth/login`;
+      console.log('🔗 Full Login URL:', loginUrl);
+      
+      const res = await axios.post(loginUrl, loginData);
       console.log('✅ Frontend: Login successful:', res.data);
       
       if (res.data.success) {

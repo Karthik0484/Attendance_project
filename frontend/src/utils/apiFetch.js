@@ -9,7 +9,9 @@ if (!axios.defaults.baseURL) {
 // Helper function to get full API URL
 export const getApiUrl = (path) => {
   if (path.startsWith('http')) return path;
-  return `${API_BASE_URL}${path.startsWith('/') ? path : '/' + path}`;
+  // Ensure no double slashes
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  return `${API_BASE_URL}${cleanPath}`;
 };
 
 export const apiFetch = async (options) => {
@@ -30,7 +32,14 @@ export const apiFetch = async (options) => {
 
   try {
     // Ensure URL is absolute (prepend API_BASE_URL if relative)
-    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.startsWith('/') ? url : '/' + url}`;
+    // Prevent double slashes by normalizing the URL
+    let fullUrl;
+    if (url.startsWith('http')) {
+      fullUrl = url;
+    } else {
+      const cleanPath = url.startsWith('/') ? url : '/' + url;
+      fullUrl = `${API_BASE_URL}${cleanPath}`;
+    }
     const res = await axios({ url: fullUrl, method, data, params, headers, responseType });
     return res;
   } catch (error) {
@@ -38,7 +47,8 @@ export const apiFetch = async (options) => {
     const status = error?.response?.status;
     if (status === 401 && localStorage.getItem('refreshToken')) {
       try {
-        const refreshRes = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken: localStorage.getItem('refreshToken') });
+        const refreshUrl = `${API_BASE_URL}/api/auth/refresh`;
+        const refreshRes = await axios.post(refreshUrl, { refreshToken: localStorage.getItem('refreshToken') });
         const newAccess = refreshRes.data?.accessToken;
         if (newAccess) {
           localStorage.setItem('accessToken', newAccess);
@@ -46,8 +56,14 @@ export const apiFetch = async (options) => {
           // Update headers with new token before retry
           headers.Authorization = `Bearer ${newAccess}`;
           // retry with updated headers
-          const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.startsWith('/') ? url : '/' + url}`;
-          const retry = await axios({ url: fullUrl, method, data, params, headers, responseType });
+          let retryUrl;
+          if (url.startsWith('http')) {
+            retryUrl = url;
+          } else {
+            const cleanPath = url.startsWith('/') ? url : '/' + url;
+            retryUrl = `${API_BASE_URL}${cleanPath}`;
+          }
+          const retry = await axios({ url: retryUrl, method, data, params, headers, responseType });
           return retry;
         }
       } catch (e) {

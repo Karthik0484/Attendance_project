@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../utils/apiFetch';
+import { apiFetch, getApiUrl } from '../utils/apiFetch';
 import Toast from '../components/Toast';
 import AddStudentModal from '../components/AddStudentModal';
 import EditStudentModal from '../components/EditStudentModal';
@@ -47,7 +47,7 @@ const StudentManagementPage = () => {
     if (!user?.id) return;
     
     try {
-      const response = await fetch(`/api/faculty/profile/${user.id}`);
+      const response = await fetch(getApiUrl(`/api/faculty/profile/${user.id}`));
       
       if (response.ok) {
         const data = await response.json();
