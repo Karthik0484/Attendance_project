@@ -350,6 +350,7 @@ const ClassAttendanceManagement = () => {
         {activeTab === 'absentee' && (
           <AbsenteeReportTab 
             classData={classData}
+            onToast={showToast}
           />
         )}
         {activeTab === 'students' && (

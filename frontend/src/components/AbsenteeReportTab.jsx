@@ -6,7 +6,7 @@ import jsPDF from 'jspdf';
 // eslint-disable-next-line no-unused-vars
 import autoTablePlugin from 'jspdf-autotable';
 
-const AbsenteeReportTab = ({ classData }) => {
+const AbsenteeReportTab = ({ classData, onToast }) => {
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
     const today = new Date();
@@ -280,7 +280,11 @@ const AbsenteeReportTab = ({ classData }) => {
     }
 
     if (!reportData || !reportData.absentees || reportData.absentees.length === 0) {
-      alert('No data to export');
+      if (onToast) {
+        onToast('No data to export', 'error');
+      } else {
+        alert('No data to export');
+      }
       return;
     }
 
@@ -361,21 +365,37 @@ const AbsenteeReportTab = ({ classData }) => {
         }
       );
 
-      alert('Excel file downloaded successfully!');
+      if (onToast) {
+        onToast('Excel file downloaded successfully!', 'success');
+      } else {
+        alert('Excel file downloaded successfully!');
+      }
     } catch (error) {
       console.error('Error exporting to Excel:', error);
-      alert('Failed to export Excel file. Please try again.');
+      if (onToast) {
+        onToast('Failed to export Excel file. Please try again.', 'error');
+      } else {
+        alert('Failed to export Excel file. Please try again.');
+      }
     }
   };
 
   const exportToPDF = () => {
     if (Object.keys(editedData).length > 0) {
-      alert('⚠️ Please save changes before exporting. Unsaved changes will not be included in the export.');
+      if (onToast) {
+        onToast('⚠️ Please save changes before exporting. Unsaved changes will not be included in the export.', 'warning');
+      } else {
+        alert('⚠️ Please save changes before exporting. Unsaved changes will not be included in the export.');
+      }
       return;
     }
 
     if (!reportData || !reportData.absentees || reportData.absentees.length === 0) {
-      alert('No data to export');
+      if (onToast) {
+        onToast('No data to export', 'error');
+      } else {
+        alert('No data to export');
+      }
       return;
     }
 
@@ -386,7 +406,11 @@ const AbsenteeReportTab = ({ classData }) => {
     // Check if autoTable is available
     if (typeof doc.autoTable !== 'function') {
       console.error('autoTable is not available on jsPDF instance');
-      alert('PDF library not loaded correctly. Please refresh the page.');
+      if (onToast) {
+        onToast('PDF library not loaded correctly. Please refresh the page.', 'error');
+      } else {
+        alert('PDF library not loaded correctly. Please refresh the page.');
+      }
       return;
     }
 
@@ -483,6 +507,11 @@ const AbsenteeReportTab = ({ classData }) => {
       : `Absentee_Report_${reportData.rawStartDate}_to_${reportData.rawEndDate}.pdf`;
     
     doc.save(filename);
+    
+    // Show success toast
+    if (onToast) {
+      onToast('PDF file downloaded successfully!', 'success');
+    }
   };
 
   // Check if class data is available

@@ -75,6 +75,13 @@ export async function exportToExcelWithLogo(data, filename, sheetName = 'Sheet1'
     // ========== 2. COMPACT LOGO AND TITLE AREA (MAX 3 ROWS) ==========
     let currentRow = 1;
     
+    // Determine number of columns based on data
+    let numDataColumns = 11; // Default
+    if (data.length > 0) {
+      numDataColumns = Object.keys(data[0]).length;
+    }
+    const lastDataColumn = String.fromCharCode(64 + Math.min(numDataColumns, 26)); // A-Z
+    
     // Row 1: Logo and College Name (compact - 3 rows max)
     worksheet.mergeCells('A1:B3');
     
@@ -103,18 +110,24 @@ export async function exportToExcelWithLogo(data, filename, sheetName = 'Sheet1'
       console.warn('Could not load logo:', logoError);
     }
 
-    // College name in C1:K3 (compact, centered)
-    worksheet.mergeCells('C1:K3');
+    // College name in C1 to last column (centered across all data columns)
+    // Use rich text to display on two lines properly
+    worksheet.mergeCells(`C1:${lastDataColumn}3`);
     const headerCell = worksheet.getCell('C1');
-    headerCell.value = 'ER. PERUMAL MANIMEKALAI COLLEGE OF ENGINEERING\n(An Autonomous Institution) - Approved by AICTE, Affiliated to Anna University';
-    headerCell.font = { name: 'Calibri', size: 12, bold: true };
-    headerCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: false };
+    headerCell.value = {
+      richText: [
+        { text: 'ER. PERUMAL MANIMEKALAI COLLEGE OF ENGINEERING', font: { name: 'Calibri', size: 12, bold: true } },
+        { text: '\n(An Autonomous Institution)', font: { name: 'Calibri', size: 11, italic: true } },
+        { text: '\nApproved by AICTE - New Delhi, Affiliated to Anna University', font: { name: 'Calibri', size: 10 } },
+      ],
+    };
+    headerCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     
     currentRow = 4;
 
     // ========== 3. REPORT TITLE AND DEPARTMENT INFO (SINGLE CONCISE ROW) ==========
-    // Row 4: Report title and department info in single row
-    worksheet.mergeCells(`A${currentRow}:K${currentRow}`);
+    // Row 4: Report title and department info in single row - merge across all data columns
+    worksheet.mergeCells(`A${currentRow}:${lastDataColumn}${currentRow}`);
     const titleParts = [];
     if (options.reportTitle) titleParts.push(sanitizeValue(options.reportTitle));
     if (options.department) titleParts.push(`Dept: ${sanitizeValue(options.department)}`);
