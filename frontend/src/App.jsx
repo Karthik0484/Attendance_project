@@ -7,6 +7,9 @@ import Login from './pages/Login';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import PrincipalDashboard from './pages/dashboards/PrincipalDashboard';
 import HODDashboard from './pages/dashboards/HODDashboard';
+import RestrictedHODDashboard from './pages/dashboards/RestrictedHODDashboard';
+import HODManagement from './pages/HODManagement';
+import DepartmentReports from './pages/DepartmentReports';
 import FacultyDashboard from './pages/dashboards/FacultyDashboard';
 import ClassAttendanceManagement from './pages/ClassAttendanceManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
@@ -47,6 +50,14 @@ const AppRoutes = () => {
               } 
             />
             <Route 
+              path="/admin/hods" 
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'principal']}>
+                  <HODManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/principal/dashboard" 
               element={
                 <ProtectedRoute allowedRoles={['principal']}>
@@ -55,10 +66,34 @@ const AppRoutes = () => {
               } 
             />
             <Route 
+              path="/principal/hods" 
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'principal']}>
+                  <HODManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/principal/department-reports" 
+              element={
+                <ProtectedRoute allowedRoles={['principal']}>
+                  <DepartmentReports />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/hod/dashboard" 
               element={
                 <ProtectedRoute allowedRoles={['hod']}>
                   <HODDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/hod/dashboard/restricted" 
+              element={
+                <ProtectedRoute allowedRoles={['hod']}>
+                  <RestrictedHODDashboard />
                 </ProtectedRoute>
               } 
             />

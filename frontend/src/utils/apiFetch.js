@@ -1,6 +1,10 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/apiConfig';
 
-// Axios base is already set in AuthContext to http://localhost:5000
+// Ensure axios uses the correct base URL
+if (!axios.defaults.baseURL) {
+  axios.defaults.baseURL = API_BASE_URL;
+}
 
 export const apiFetch = async (options) => {
   const {
@@ -26,7 +30,7 @@ export const apiFetch = async (options) => {
     const status = error?.response?.status;
     if (status === 401 && localStorage.getItem('refreshToken')) {
       try {
-        const refreshRes = await axios.post('/api/auth/refresh', { refreshToken: localStorage.getItem('refreshToken') });
+        const refreshRes = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken: localStorage.getItem('refreshToken') });
         const newAccess = refreshRes.data?.accessToken;
         if (newAccess) {
           localStorage.setItem('accessToken', newAccess);

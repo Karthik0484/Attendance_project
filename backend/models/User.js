@@ -81,6 +81,21 @@ const userSchema = new mongoose.Schema({
     enum: ['active', 'inactive', 'suspended'],
     default: 'active'
   },
+  accessLevel: {
+    type: String,
+    enum: ['full', 'restricted'],
+    default: function() {
+      // Auto-set accessLevel based on status for HODs
+      if (this.role === 'hod') {
+        return this.status === 'active' ? 'full' : 'restricted';
+      }
+      return 'full';
+    }
+  },
+  expiryDate: {
+    type: Date,
+    default: null
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -122,6 +137,24 @@ userSchema.pre('save', async function(next) {
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
+});
+
+// Auto-update accessLevel when status changes for HODs
+userSchema.pre('save', function(next) {
+  if (this.role === 'hod' && this.isModified('status')) {
+    if (this.status === 'active') {
+      this.accessLevel = 'full';
+    } else if (this.status === 'inactive') {
+      this.accessLevel = 'restricted';
+    }
+  }
+  next();
+});
+
+// Virtual for checking if account is expired
+userSchema.virtual('isExpired').get(function() {
+  if (!this.expiryDate) return false;
+  return new Date() > new Date(this.expiryDate);
 });
 
 // Compare password method

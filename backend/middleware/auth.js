@@ -56,21 +56,50 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
-    console.log('✅ Auth middleware - User found:', { id: user._id, role: user.role, department: user.department, status: user.status });
+    console.log('✅ Auth middleware - User found:', { id: user._id, role: user.role, department: user.department, status: user.status, accessLevel: user.accessLevel });
 
-    if (user.status !== 'active') {
-      console.log('❌ Auth middleware - User account inactive:', user.status);
-      return res.status(401).json({ 
+    // Check if account is suspended (completely blocked)
+    if (user.status === 'suspended') {
+      console.log('❌ Auth middleware - User account suspended');
+      return res.status(403).json({ 
         success: false,
-        msg: 'Account is inactive or suspended.' 
+        msg: 'Account is suspended. Please contact administrator.' 
       });
     }
+
+    // Check if HOD account is expired
+    if (user.role === 'hod' && user.expiryDate) {
+      const isExpired = new Date() > new Date(user.expiryDate);
+      if (isExpired) {
+        console.log('❌ Auth middleware - HOD account expired');
+        return res.status(403).json({ 
+          success: false,
+          msg: 'Your HOD access has expired. Please contact administrator.' 
+        });
+      }
+    }
+
+    // For non-HOD roles, only allow active status
+    if (user.role !== 'hod' && user.status !== 'active') {
+      console.log('❌ Auth middleware - Non-HOD user account inactive:', user.status);
+      return res.status(401).json({ 
+        success: false,
+        msg: 'Account is inactive. Please contact administrator.' 
+      });
+    }
+
+    // For HODs, inactive status is allowed but with restricted access
+    // This is handled by accessLevel, not by blocking authentication
 
     // Update last login
     user.lastLogin = new Date();
     await user.save();
 
+    // Attach access level info to user object
     req.user = user;
+    req.user.isRestricted = user.role === 'hod' && user.status === 'inactive';
+    req.user.hasFullAccess = user.accessLevel === 'full' || (user.role === 'hod' && user.status === 'active');
+    
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -164,4 +193,32 @@ export const selfOrAdmin = (req, res, next) => {
     success: false,
     msg: 'Access denied. You can only access your own data.' 
   });
+};
+
+// Restrict write operations for inactive HODs
+export const restrictInactiveHOD = (req, res, next) => {
+  // Check if this is a write operation (POST, PUT, DELETE, PATCH)
+  const writeMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
+  
+  if (writeMethods.includes(req.method)) {
+    // Check if user is an inactive HOD
+    if (req.user && req.user.role === 'hod' && req.user.status === 'inactive') {
+      console.log('🚫 Write operation blocked for inactive HOD:', req.user.email);
+      return res.status(403).json({ 
+        success: false,
+        msg: 'Your HOD role is currently inactive. You can view data but cannot perform modifications. Please contact the Principal for reactivation.' 
+      });
+    }
+    
+    // Also check accessLevel
+    if (req.user && req.user.role === 'hod' && req.user.accessLevel === 'restricted') {
+      console.log('🚫 Write operation blocked for restricted HOD:', req.user.email);
+      return res.status(403).json({ 
+        success: false,
+        msg: 'Your account has restricted access. You can view data but cannot perform modifications.' 
+      });
+    }
+  }
+  
+  next();
 };

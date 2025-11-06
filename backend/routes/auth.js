@@ -55,13 +55,13 @@ router.post('/login', [
     });
 
     // Step 1: Check if user exists by email only
+    // For HODs, allow both active and inactive status
     const userByEmail = await User.findOne({ 
-      email: email.toLowerCase().trim(), 
-      status: 'active' 
+      email: email.toLowerCase().trim()
     });
     
     console.log('👤 User found by email:', userByEmail ? 'Yes' : 'No');
-    console.log('🔍 Database query:', { email: email.toLowerCase().trim(), status: 'active' });
+    console.log('🔍 Database query:', { email: email.toLowerCase().trim() });
     
     if (!userByEmail) {
       console.log('❌ User not found with email:', email);
@@ -71,6 +71,36 @@ router.post('/login', [
       return res.status(401).json({ 
         success: false,
         msg: 'User not found' 
+      });
+    }
+
+    // Check if account is suspended (completely blocked)
+    if (userByEmail.status === 'suspended') {
+      console.log('❌ Account is suspended');
+      return res.status(403).json({ 
+        success: false,
+        msg: 'Your account has been suspended. Please contact administrator.' 
+      });
+    }
+
+    // Check if HOD account is expired
+    if (userByEmail.role === 'hod' && userByEmail.expiryDate) {
+      const isExpired = new Date() > new Date(userByEmail.expiryDate);
+      if (isExpired) {
+        console.log('❌ Account has expired');
+        return res.status(403).json({ 
+          success: false,
+          msg: 'Your HOD access has expired. Please contact administrator.' 
+        });
+      }
+    }
+
+    // For non-HOD roles, only allow active status
+    if (userByEmail.role !== 'hod' && userByEmail.status !== 'active') {
+      console.log('❌ Non-HOD user is not active');
+      return res.status(401).json({ 
+        success: false,
+        msg: 'Your account is inactive. Please contact administrator.' 
       });
     }
 
@@ -101,10 +131,24 @@ router.post('/login', [
       });
     }
 
-    // Step 4: Generate tokens
+    // Step 4: Update accessLevel for HODs based on status
+    if (userByEmail.role === 'hod') {
+      if (userByEmail.status === 'active') {
+        userByEmail.accessLevel = 'full';
+      } else if (userByEmail.status === 'inactive') {
+        userByEmail.accessLevel = 'restricted';
+      }
+      await userByEmail.save();
+    }
+
+    // Step 5: Generate tokens
     console.log('🎫 Generating JWT tokens...');
     const { accessToken, refreshToken } = generateTokens(userByEmail._id);
     console.log('✅ Tokens generated successfully');
+
+    // Step 6: Update last login
+    userByEmail.lastLogin = new Date();
+    await userByEmail.save();
 
     const responseData = {
       success: true,
@@ -121,11 +165,14 @@ router.post('/login', [
         subjects: userByEmail.subjects,
         assignedClasses: userByEmail.assignedClasses,
         status: userByEmail.status,
-        lastLogin: userByEmail.lastLogin
+        accessLevel: userByEmail.accessLevel || (userByEmail.role === 'hod' && userByEmail.status === 'inactive' ? 'restricted' : 'full'),
+        lastLogin: userByEmail.lastLogin,
+        isRestricted: userByEmail.role === 'hod' && userByEmail.status === 'inactive'
       }
     };
 
     console.log('✅ LOGIN SUCCESSFUL for user:', userByEmail.email);
+    console.log('📊 Access Level:', responseData.user.accessLevel);
     console.log('📤 Sending response with user data');
     
     res.status(200).json(responseData);

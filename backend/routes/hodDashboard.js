@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, hodAndAbove } from '../middleware/auth.js';
+import { authenticate, hodAndAbove, restrictInactiveHOD } from '../middleware/auth.js';
 import DepartmentSettings from '../models/DepartmentSettings.js';
 import Student from '../models/Student.js';
 import Attendance from '../models/Attendance.js';
@@ -304,7 +304,7 @@ router.get('/settings', authenticate, hodAndAbove, async (req, res) => {
 // @desc    Update department attendance policy settings
 // @route   PUT /api/hod/settings
 // @access  HOD and above
-router.put('/settings', authenticate, hodAndAbove, async (req, res) => {
+router.put('/settings', authenticate, hodAndAbove, restrictInactiveHOD, async (req, res) => {
   try {
     const department = req.user.department;
     const updates = req.body;
@@ -752,7 +752,7 @@ router.get('/student-reports/:studentId', authenticate, hodAndAbove, async (req,
 // @desc    Send department-wide notification
 // @route   POST /api/hod/notifications
 // @access  HOD and above
-router.post('/notifications', authenticate, hodAndAbove, async (req, res) => {
+router.post('/notifications', authenticate, hodAndAbove, restrictInactiveHOD, async (req, res) => {
   try {
     const { title, message, targetRole, attachments } = req.body;
     const department = req.user.department;
@@ -933,7 +933,7 @@ router.get('/notifications/history', authenticate, hodAndAbove, async (req, res)
 // @desc    Archive a sent notification (soft delete)
 // @route   PUT /api/hod/notifications/:id/archive
 // @access  HOD and above
-router.put('/notifications/:id/archive', authenticate, hodAndAbove, async (req, res) => {
+router.put('/notifications/:id/archive', authenticate, hodAndAbove, restrictInactiveHOD, async (req, res) => {
   try {
     const { id } = req.params;
 

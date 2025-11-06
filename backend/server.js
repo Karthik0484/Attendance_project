@@ -19,6 +19,9 @@ import notificationRoutes from './routes/notification.js';
 import absenteeReportRoutes from './routes/absenteeReport.js';
 import classRoutes from './routes/classes.js';
 import hodDashboardRoutes from './routes/hodDashboard.js';
+import principalRoutes from './routes/principal.js';
+import hodManagementRoutes from './routes/hodManagement.js';
+import departmentReportsRoutes from './routes/departmentReports.js';
 import config from './config/config.js';
 import Student from './models/Student.js';
 import Attendance from './models/Attendance.js';
@@ -55,9 +58,50 @@ const app = express();
 const PORT = config.PORT;
 
 // Middleware
+// CORS configuration - allow both localhost (development) and production frontend
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'https://attendance-project-qn03ugnuu-karthik-ks-projects-4c2799af.vercel.app', // Vercel frontend URL
+  process.env.FRONTEND_URL // Additional frontend URL from environment variable
+].filter(Boolean); // Remove undefined values
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // Check if origin matches any allowed origin
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      // Support wildcard patterns for Vercel preview deployments
+      if (allowedOrigin.includes('*')) {
+        const pattern = new RegExp('^' + allowedOrigin.replace(/\*/g, '.*') + '$');
+        return pattern.test(origin);
+      }
+      return origin === allowedOrigin || origin.startsWith(allowedOrigin);
+    });
+    
+    // Also allow Vercel preview deployments (they have different subdomains)
+    const isVercelDomain = origin.includes('vercel.app') || origin.includes('.vercel.app');
+    
+    if (isAllowed || isVercelDomain || allowedOrigins.length === 0) {
+      callback(null, true);
+    } else {
+      // Log for debugging
+      console.warn(`CORS blocked origin: ${origin}`);
+      console.log('Allowed origins:', allowedOrigins);
+      callback(null, true); // Allow for now - you can change this to callback(new Error('Not allowed')) for stricter control
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -97,6 +141,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', absenteeReportRoutes);
 console.log('🔧 Registering HOD dashboard routes at /api/hod');
 app.use('/api/hod', hodDashboardRoutes);
+app.use('/api/principal', principalRoutes);
+app.use('/api/hod-management', hodManagementRoutes);
+app.use('/api/principal/department-reports', departmentReportsRoutes);
 console.log('✅ All routes registered successfully');
 
 // Health check route

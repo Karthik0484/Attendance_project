@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import RestrictedHODDashboard from '../pages/dashboards/RestrictedHODDashboard';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { isAuthenticated, user, loading } = useAuth();
@@ -18,6 +19,14 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Redirect inactive HODs to restricted dashboard
+  if (user.role === 'hod' && user.status === 'inactive' && location.pathname !== '/hod/dashboard/restricted') {
+    // Check if trying to access HOD routes
+    if (location.pathname.startsWith('/hod/')) {
+      return <Navigate to="/hod/dashboard/restricted" replace />;
+    }
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {

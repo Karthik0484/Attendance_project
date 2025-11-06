@@ -7,6 +7,12 @@ const departmentSettingsSchema = new mongoose.Schema({
     unique: true,
     enum: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']
   },
+  hodId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
   // Attendance Policy Settings
   attendancePolicy: {
     minimumPercentage: {

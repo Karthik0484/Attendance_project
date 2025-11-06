@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import CreateUserModal from '../../components/CreateUserModal';
 import FacultyList from '../../components/FacultyList';
@@ -6,6 +7,7 @@ import Footer from '../../components/Footer';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [facultyRefreshTrigger, setFacultyRefreshTrigger] = useState(0);
 
@@ -92,6 +94,25 @@ const AdminDashboard = () => {
             <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">View comprehensive attendance reports</p>
             <button className="w-full sm:w-auto bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base min-h-[44px]">
               View Reports
+            </button>
+          </div>
+
+          {/* Manage HODs */}
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center mb-3 sm:mb-4">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 mr-2 sm:mr-3 flex items-center justify-center bg-blue-100 rounded-lg flex-shrink-0">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                </svg>
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">Manage HODs</h3>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">Create and assign Head of Departments to departments</p>
+            <button
+              onClick={() => navigate('/admin/hods')}
+              className="w-full sm:w-auto bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base min-h-[44px]"
+            >
+              Manage HODs
             </button>
           </div>
 
