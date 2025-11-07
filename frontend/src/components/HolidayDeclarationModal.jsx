@@ -49,9 +49,21 @@ const HolidayDeclarationModal = ({
           setError('Class data is required for class-specific holidays');
           return;
         }
+        
+        // Normalize semester value - remove "Sem " prefix if present to match backend storage format
+        let normalizedSemester = classData.semester;
+        if (typeof normalizedSemester === 'string' && normalizedSemester.startsWith('Sem ')) {
+          normalizedSemester = normalizedSemester.replace(/^Sem\s+/i, '');
+        }
+        
         requestData.batchYear = classData.batch;
         requestData.section = classData.section;
-        requestData.semester = classData.semester;
+        requestData.semester = normalizedSemester;
+        
+        console.log('🎉 Normalized semester for holiday declaration:', {
+          original: classData.semester,
+          normalized: normalizedSemester
+        });
       }
 
       console.log('🎉 Sending holiday declaration request:', requestData);

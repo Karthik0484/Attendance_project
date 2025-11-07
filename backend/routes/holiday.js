@@ -187,17 +187,30 @@ router.post('/declare', facultyAndAbove, [
         
         if (scope === 'class') {
           // Find faculty assigned to this specific class
-          const classId = `${batchYear}_${year}_${semester}_${section}`;
-          const assignments = await ClassAssignment.find({
-            classId,
-            department: currentUser.department,
-            status: 'active'
-          });
+          // Note: classId format may vary, try multiple formats
+          const classIdFormats = [
+            `${batchYear}_${semester}_${section}`,
+            `${batchYear}_Sem ${semester}_${section}`,
+            `${batchYear}_Sem${semester}_${section}`
+          ];
           
-          for (const assignment of assignments) {
-            const faculty = await Faculty.findById(assignment.facultyId);
-            if (faculty && faculty.userId.toString() !== currentUser._id.toString()) {
-              facultyList.push(faculty._id);
+          for (const classIdFormat of classIdFormats) {
+            const assignments = await ClassAssignment.find({
+              $or: [
+                { classId: classIdFormat },
+                { batch: batchYear, section, semester }
+              ],
+              department: currentUser.department,
+              status: 'active'
+            });
+            
+            for (const assignment of assignments) {
+              const faculty = await Faculty.findById(assignment.facultyId);
+              if (faculty && faculty.userId && faculty.userId.toString() !== currentUser._id.toString()) {
+                if (!facultyList.includes(faculty.userId)) {
+                  facultyList.push(faculty.userId);
+                }
+              }
             }
           }
         } else {
@@ -207,19 +220,24 @@ router.post('/declare', facultyAndAbove, [
             status: 'active'
           });
           
-          facultyList.push(...allFaculty.filter(f => f.userId.toString() !== currentUser._id.toString()).map(f => f._id));
+          facultyList.push(...allFaculty
+            .filter(f => f.userId && f.userId.toString() !== currentUser._id.toString())
+            .map(f => f.userId)
+            .filter((id, index, self) => self.indexOf(id) === index) // Remove duplicates
+          );
         }
 
         // Create notifications
         const notificationMessage = scope === 'class'
-          ? `Holiday declared for ${batchYear} | ${year} | ${semester} | Section ${section} on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`
+          ? `Holiday declared for ${batchYear} | ${semester} | Section ${section} on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`
           : `Global holiday declared on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`;
 
-        const notifications = facultyList.map(facultyId => ({
-          facultyId,
+        const notifications = facultyList.map(userId => ({
+          userId,
           message: notificationMessage,
           type: 'holiday',
-          classRef: scope === 'class' ? `${batchYear}_${year}_${semester}_${section}` : null,
+          department: currentUser.department,
+          classRef: scope === 'class' ? `${batchYear}_${semester}_${section}` : null,
           metadata: {
             holidayId: holiday.holidayId,
             date: holidayDateString,
@@ -228,7 +246,8 @@ router.post('/declare', facultyAndAbove, [
             declaredBy: currentUser.name
           },
           priority: 'medium',
-          actionUrl: scope === 'class' ? `/faculty/class/${batchYear}_${year}_${semester}_${section}` : null
+          sentBy: currentUser._id,
+          actionUrl: scope === 'class' ? `/faculty/class/${batchYear}_${semester}_${section}` : null
         }));
 
         if (notifications.length > 0) {

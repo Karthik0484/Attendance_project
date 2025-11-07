@@ -4,7 +4,8 @@ import { apiFetch } from '../utils/apiFetch';
 const HolidayList = ({ 
   classData, 
   onHolidayUpdate,
-  showActions = true 
+  showActions = true,
+  refreshKey = 0 // Add refreshKey prop to force refresh
 }) => {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,20 +13,49 @@ const HolidayList = ({
   const [editingHoliday, setEditingHoliday] = useState(null);
   const [editReason, setEditReason] = useState('');
 
+  // Extract values to ensure consistent dependency array size
+  const batch = classData?.batch ?? null;
+  const section = classData?.section ?? null;
+  const semester = classData?.semester ?? null;
+  const refreshKeyValue = refreshKey ?? 0;
+
   useEffect(() => {
-    if (classData) {
+    if (batch && section && semester) {
       fetchHolidays();
     }
-  }, [classData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batch, section, semester, refreshKeyValue]); // All 4 dependencies always present
 
   const fetchHolidays = async () => {
     try {
       setLoading(true);
+      setError('');
+      
+      if (!classData) {
+        console.error('❌ HolidayList: classData is missing');
+        setError('Class data is missing');
+        return;
+      }
+
+      // Normalize semester value - remove "Sem " prefix if present
+      let normalizedSemester = classData.semester;
+      if (typeof normalizedSemester === 'string' && normalizedSemester.startsWith('Sem ')) {
+        normalizedSemester = normalizedSemester.replace(/^Sem\s+/i, '');
+      }
+
+      console.log('📅 Fetching holidays for class:', {
+        batch: classData.batch,
+        section: classData.section,
+        semester: classData.semester,
+        normalizedSemester,
+        department: classData.department
+      });
+
       const queryParams = new URLSearchParams({
         scope: 'class',
         batchYear: classData.batch,
         section: classData.section,
-        semester: classData.semester
+        semester: normalizedSemester
       });
 
       const response = await apiFetch({
@@ -33,14 +63,19 @@ const HolidayList = ({
         method: 'GET'
       });
 
+      console.log('📅 Holidays API response:', response.data);
+
       if (response.data.status === 'success') {
-        setHolidays(response.data.data);
+        const holidaysData = response.data.data || [];
+        console.log('✅ Holidays fetched successfully:', holidaysData.length);
+        setHolidays(holidaysData);
       } else {
-        setError('Failed to fetch holidays');
+        console.error('❌ Failed to fetch holidays:', response.data.message);
+        setError(response.data.message || 'Failed to fetch holidays');
       }
     } catch (err) {
-      console.error('Error fetching holidays:', err);
-      setError('Failed to fetch holidays');
+      console.error('❌ Error fetching holidays:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to fetch holidays');
     } finally {
       setLoading(false);
     }

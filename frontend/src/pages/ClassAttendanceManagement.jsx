@@ -489,6 +489,7 @@ const ClassAttendanceManagement = () => {
                 classData={classData}
                 onHolidayUpdate={() => setHolidayRefreshKey(prev => prev + 1)}
                 showActions={true}
+                refreshKey={holidayRefreshKey}
               />
             </div>
           </div>
@@ -524,8 +525,14 @@ const ClassAttendanceManagement = () => {
         isOpen={showHolidayModal}
         onClose={() => setShowHolidayModal(false)}
         onSuccess={(holiday) => {
+          console.log('✅ Holiday declared successfully:', holiday);
           showToast('Holiday declared successfully!', 'success');
           setHolidayRefreshKey(prev => prev + 1);
+          // Force refresh of holiday list by triggering a re-render
+          setTimeout(() => {
+            // This will cause HolidayList to re-fetch
+            setHolidayRefreshKey(prev => prev + 1);
+          }, 500);
         }}
         classData={classData}
       />

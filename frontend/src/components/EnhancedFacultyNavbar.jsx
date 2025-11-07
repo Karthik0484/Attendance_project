@@ -102,11 +102,11 @@ const EnhancedFacultyNavbar = () => {
   if (loading) {
     return (
       <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 shadow-lg">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20 py-2">
-            <div className="animate-pulse flex items-center space-x-2 sm:space-x-4">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full"></div>
-              <div className="space-y-2 hidden sm:block">
+            <div className="animate-pulse flex items-center space-x-3 sm:space-x-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full"></div>
+              <div className="space-y-2">
                 <div className="h-4 w-32 bg-white bg-opacity-30 rounded"></div>
                 <div className="h-3 w-24 bg-white bg-opacity-20 rounded"></div>
               </div>
@@ -120,14 +120,14 @@ const EnhancedFacultyNavbar = () => {
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 shadow-lg">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20 py-2">
             {/* Left Side - Profile Trigger */}
-            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
+            <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                  className="flex items-center space-x-2 sm:space-x-3 md:space-x-4 hover:bg-white hover:bg-opacity-10 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 transition-all group w-full sm:w-auto"
+                  className="flex items-center space-x-3 sm:space-x-3 md:space-x-4 hover:bg-white hover:bg-opacity-10 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 transition-all group w-full sm:w-auto"
                 >
                   {/* Enhanced Avatar */}
                   <div className="relative flex-shrink-0">
@@ -135,34 +135,32 @@ const EnhancedFacultyNavbar = () => {
                       <img
                         src={`${API_BASE_URL}${profileData.profilePhoto}`}
                         alt="Profile"
-                        className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full object-cover ring-2 sm:ring-4 ring-blue-300 ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all"
+                        className="w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full object-cover ring-2 sm:ring-4 ring-white ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all"
                       />
                     ) : (
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center ring-2 sm:ring-4 ring-blue-300 ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all">
-                        <span className="text-blue-600 font-bold text-lg sm:text-xl md:text-2xl">
+                      <div className="w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center ring-2 sm:ring-4 ring-blue-300 ring-opacity-50 shadow-lg group-hover:ring-opacity-70 transition-all">
+                        <span className="text-blue-600 font-bold text-xl sm:text-xl md:text-2xl">
                           {profileData?.name?.charAt(0) || user?.name?.charAt(0) || 'F'}
                         </span>
                       </div>
                     )}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-500 rounded-full border border-white animate-pulse"></div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-white shadow-md"></div>
                   </div>
                   
-                  {/* User Info - Hidden on very small screens, shown on sm+ */}
-                  <div className="text-left hidden sm:block min-w-0 flex-1">
+                  {/* User Info - Always visible on mobile, enhanced on desktop */}
+                  <div className="text-left min-w-0 flex-1">
                     <div className="flex items-center space-x-1 sm:space-x-2 min-w-0">
-                      <h4 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-white group-hover:text-blue-100 transition-colors truncate">
+                      <h4 className="text-base sm:text-base md:text-lg lg:text-xl font-bold text-white group-hover:text-blue-100 transition-colors truncate">
                         {profileData?.name || user?.name || 'Faculty'}
                       </h4>
-                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-200 group-hover:rotate-180 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="hidden sm:block w-3 h-3 sm:w-4 sm:h-4 text-blue-200 group-hover:rotate-180 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
                     <div className="flex items-center space-x-1 sm:space-x-2 mt-0.5 sm:mt-1 min-w-0">
-                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                      <p className="text-xs sm:text-sm font-medium text-blue-100 truncate">
+                      <p className="text-sm sm:text-sm font-medium text-white truncate">
                         {profileData?.department || user?.department}
+                        {summary?.totalClasses ? ` • ${summary.totalClasses}` : ''}
                       </p>
                     </div>
                   </div>
@@ -263,13 +261,13 @@ const EnhancedFacultyNavbar = () => {
               <div className="relative" ref={notificationRef}>
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-1.5 sm:p-2 text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-all"
+                  className="relative p-2 sm:p-2 text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-all"
                 >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs font-bold rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center animate-pulse text-[10px] sm:text-xs">
+                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 sm:h-5 sm:w-5 flex items-center justify-center animate-pulse">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -287,12 +285,12 @@ const EnhancedFacultyNavbar = () => {
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="group relative bg-white text-red-600 px-3 py-1.5 sm:px-4 sm:py-2 md:px-6 md:py-2.5 rounded-lg hover:bg-red-600 hover:text-white transition-all duration-300 shadow-md hover:shadow-xl flex items-center space-x-1 sm:space-x-2 font-semibold text-xs sm:text-sm md:text-base"
+                className="group relative bg-white text-red-600 px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-2.5 rounded-lg hover:bg-red-600 hover:text-white transition-all duration-300 shadow-md hover:shadow-xl flex items-center space-x-1.5 sm:space-x-2 font-semibold text-sm sm:text-sm md:text-base"
               >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                <span className="hidden xs:inline sm:inline">Logout</span>
+                <span className="sm:inline">Logout</span>
               </button>
             </div>
           </div>

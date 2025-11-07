@@ -69,6 +69,21 @@ export const authenticate = async (req, res, next) => {
 
     console.log('✅ Auth middleware - User found:', { id: user._id, role: user.role, department: user.department, status: user.status, accessLevel: user.accessLevel });
 
+    // Ensure user has required fields
+    if (!user.role) {
+      console.log('❌ Auth middleware - User missing role');
+      return res.status(401).json({ 
+        success: false,
+        msg: 'User account is missing required information. Please contact administrator.' 
+      });
+    }
+
+    // Set default status if not present
+    if (!user.status) {
+      user.status = 'active';
+      console.log('⚠️ Auth middleware - User missing status, defaulting to active');
+    }
+
     // Check if account is suspended (completely blocked)
     if (user.status === 'suspended') {
       console.log('❌ Auth middleware - User account suspended');
@@ -102,9 +117,14 @@ export const authenticate = async (req, res, next) => {
     // For HODs, inactive status is allowed but with restricted access
     // This is handled by accessLevel, not by blocking authentication
 
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    // Update last login (with error handling)
+    try {
+      user.lastLogin = new Date();
+      await user.save();
+    } catch (saveError) {
+      console.error('⚠️ Error updating last login (non-critical):', saveError.message);
+      // Don't block authentication if last login update fails
+    }
 
     // Attach access level info to user object
     req.user = user;
@@ -113,6 +133,9 @@ export const authenticate = async (req, res, next) => {
     
     next();
   } catch (error) {
+    console.error('❌ Authentication error:', error);
+    console.error('❌ Error stack:', error.stack);
+    
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ 
         success: false,
@@ -129,7 +152,8 @@ export const authenticate = async (req, res, next) => {
     
     return res.status(500).json({ 
       success: false,
-      msg: 'Server error during authentication.' 
+      msg: 'Server error during authentication.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

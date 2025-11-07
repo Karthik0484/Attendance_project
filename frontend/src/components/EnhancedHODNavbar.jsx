@@ -123,11 +123,11 @@ const EnhancedHODNavbar = () => {
   if (loading) {
     return (
       <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-indigo-600 via-purple-700 to-indigo-700 shadow-lg">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20 py-2">
-            <div className="animate-pulse flex items-center space-x-2 sm:space-x-4">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full"></div>
-              <div className="space-y-2 hidden sm:block">
+            <div className="animate-pulse flex items-center space-x-3 sm:space-x-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full"></div>
+              <div className="space-y-2">
                 <div className="h-4 w-32 bg-white bg-opacity-30 rounded"></div>
                 <div className="h-3 w-24 bg-white bg-opacity-20 rounded"></div>
               </div>
@@ -148,57 +148,53 @@ const EnhancedHODNavbar = () => {
           <div className="absolute -bottom-8 left-20 w-72 h-72 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
         </div>
         
-        <div className="relative max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="relative max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20 py-2">
             {/* Left Side - Profile Trigger with enhanced design */}
-            <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
+            <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                  className="flex items-center space-x-2 sm:space-x-3 md:space-x-4 hover:bg-white hover:bg-opacity-20 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all duration-300 group w-full sm:w-auto backdrop-blur-sm border border-white border-opacity-10 hover:border-opacity-30 hover:shadow-lg"
+                  className="flex items-center space-x-3 sm:space-x-3 md:space-x-4 hover:bg-white hover:bg-opacity-20 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all duration-300 group w-full sm:w-auto backdrop-blur-sm border border-white border-opacity-10 hover:border-opacity-30 hover:shadow-lg"
                 >
                   {/* Enhanced Avatar with glow effect */}
                   <div className="relative flex-shrink-0">
-                    <div className="absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-300"></div>
+                    <div className="hidden sm:block absolute inset-0 bg-white rounded-full opacity-0 group-hover:opacity-30 blur-md transition-opacity duration-300"></div>
                     {profileData?.profilePhoto ? (
                       <img
                         src={`${API_BASE_URL}${profileData.profilePhoto}`}
                         alt="Profile"
-                        className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full object-cover ring-2 sm:ring-4 ring-white ring-opacity-60 shadow-xl group-hover:ring-opacity-90 group-hover:scale-110 transition-all duration-300"
+                        className="relative w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full object-cover ring-2 sm:ring-4 ring-white ring-opacity-60 shadow-xl group-hover:ring-opacity-90 group-hover:scale-110 transition-all duration-300"
                       />
                     ) : (
-                      <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center ring-2 sm:ring-4 ring-white ring-opacity-60 shadow-xl group-hover:ring-opacity-90 group-hover:scale-110 transition-all duration-300">
-                        <span className="text-indigo-600 font-bold text-lg sm:text-xl md:text-2xl">
+                      <div className="relative w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white rounded-full flex items-center justify-center ring-2 sm:ring-4 ring-white ring-opacity-60 shadow-xl group-hover:ring-opacity-90 group-hover:scale-110 transition-all duration-300">
+                        <span className="text-indigo-600 font-bold text-xl sm:text-xl md:text-2xl">
                           {profileData?.name?.charAt(0) || user?.name?.charAt(0) || 'H'}
                         </span>
                       </div>
                     )}
                     {/* Enhanced online status indicator */}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-4 sm:h-4 bg-green-400 rounded-full border-2 border-white shadow-lg animate-pulse ring-2 ring-green-300 ring-opacity-50"></div>
-                    {/* Pulsing ring animation */}
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-4 sm:h-4 bg-green-400 rounded-full border-2 border-white shadow-lg"></div>
                   </div>
                   
-                  {/* User Info - Enhanced with better styling */}
-                  <div className="text-left hidden sm:block min-w-0 flex-1">
+                  {/* User Info - Always visible on mobile, enhanced on desktop */}
+                  <div className="text-left min-w-0 flex-1">
                     <div className="flex items-center space-x-1 sm:space-x-2 min-w-0">
-                      <h4 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-white group-hover:text-yellow-200 transition-colors truncate drop-shadow-md">
+                      <h4 className="text-base sm:text-base md:text-lg lg:text-xl font-bold text-white group-hover:text-yellow-200 transition-colors truncate drop-shadow-md">
                         {profileData?.name || user?.name || 'HOD'}
                       </h4>
-                      {/* Verified badge */}
-                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300 flex-shrink-0 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20">
+                      {/* Verified badge - hidden on mobile */}
+                      <svg className="hidden sm:block w-3 h-3 sm:w-4 sm:h-4 text-yellow-300 flex-shrink-0 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white group-hover:rotate-180 transition-transform duration-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="hidden sm:block w-3 h-3 sm:w-4 sm:h-4 text-white group-hover:rotate-180 transition-transform duration-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
                     <div className="flex items-center space-x-1 sm:space-x-2 mt-0.5 sm:mt-1 min-w-0">
-                      <svg className="w-3 h-3 sm:w-4 sm:h-4 text-purple-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                      <p className="text-xs sm:text-sm font-medium text-purple-100 truncate drop-shadow-sm">
-                        {profileData?.department || user?.department} Department
+                      <p className="text-sm sm:text-sm font-medium text-white truncate drop-shadow-sm">
+                        {profileData?.department || user?.department}
+                        {summary?.totalFaculty ? ` • ${summary.totalFaculty}` : ''}
                       </p>
                     </div>
                   </div>
@@ -353,14 +349,12 @@ const EnhancedHODNavbar = () => {
               {/* Logout Button with enhanced design */}
               <button
                 onClick={handleLogout}
-                className="group relative bg-white bg-opacity-90 backdrop-blur-sm text-rose-600 px-3 py-1.5 sm:px-4 sm:py-2 md:px-6 md:py-2.5 rounded-xl hover:bg-rose-500 hover:text-white transition-all duration-300 shadow-lg hover:shadow-2xl flex items-center space-x-1 sm:space-x-2 font-bold text-xs sm:text-sm md:text-base border-2 border-rose-200 hover:border-rose-400 transform hover:scale-105 active:scale-95"
+                className="group relative bg-white text-red-600 px-3 py-2 sm:px-4 sm:py-2 md:px-6 md:py-2.5 rounded-lg hover:bg-red-600 hover:text-white transition-all duration-300 shadow-md hover:shadow-xl flex items-center space-x-1.5 sm:space-x-2 font-semibold text-sm sm:text-sm md:text-base"
               >
-                {/* Glow effect on hover */}
-                <div className="absolute inset-0 bg-rose-500 rounded-xl opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
-                <svg className="relative w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <svg className="w-5 h-5 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                <span className="relative hidden xs:inline sm:inline">Logout</span>
+                <span className="sm:inline">Logout</span>
               </button>
             </div>
           </div>
