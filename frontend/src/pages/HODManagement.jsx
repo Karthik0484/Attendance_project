@@ -363,10 +363,10 @@ const HODManagement = () => {
       )}
 
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
+      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 py-3 sm:py-4">
+            <div className="flex items-center w-full sm:w-auto">
               <button
                 onClick={() => {
                   // Navigate to the correct dashboard based on user role
@@ -379,37 +379,38 @@ const HODManagement = () => {
                     navigate(-1);
                   }
                 }}
-                className="mr-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="mr-2 sm:mr-4 p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                 title="Back to Dashboard"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Manage HODs</h1>
-                <p className="text-gray-600">Create and manage Head of Departments</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Manage HODs</h1>
+                <p className="text-xs sm:text-sm text-gray-600 truncate">Create and manage Head of Departments</p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={handleExport}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                className="flex-1 sm:flex-none bg-green-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                 disabled={loading}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Export Excel
+                <span className="hidden xs:inline">Export Excel</span>
+                <span className="xs:hidden">Export</span>
               </button>
               <button
                 onClick={handleAddHOD}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="flex-1 sm:flex-none bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add HOD
+                <span>Add HOD</span>
               </button>
             </div>
           </div>
@@ -417,74 +418,75 @@ const HODManagement = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-          <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 md:gap-6 mb-4 sm:mb-6 lg:mb-8">
+          <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-4 md:p-5 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Total Departments</p>
-                <p className="text-3xl font-bold text-gray-900">{summary.total}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] xs:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Total Departments</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">{summary.total}</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                <span className="text-2xl">🏢</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 ml-2">
+                <span className="text-base sm:text-xl md:text-2xl">🏢</span>
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-white rounded-xl shadow-sm border border-green-100 p-5 hover:shadow-md transition-shadow">
+          <div className="bg-gradient-to-br from-green-50 to-white rounded-xl shadow-sm border border-green-100 p-3 sm:p-4 md:p-5 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Active HODs</p>
-                <p className="text-3xl font-bold text-green-600">{summary.active}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] xs:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Active HODs</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600">{summary.active}</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                <span className="text-2xl">✅</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0 ml-2">
+                <span className="text-base sm:text-xl md:text-2xl">✅</span>
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-red-50 to-white rounded-xl shadow-sm border border-red-100 p-5 hover:shadow-md transition-shadow">
+          <div className="bg-gradient-to-br from-red-50 to-white rounded-xl shadow-sm border border-red-100 p-3 sm:p-4 md:p-5 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Inactive/Vacant</p>
-                <p className="text-3xl font-bold text-red-600">{summary.inactive}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] xs:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">Inactive/Vacant</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-red-600">{summary.inactive}</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
-                <span className="text-2xl">⚠️</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 ml-2">
+                <span className="text-base sm:text-xl md:text-2xl">⚠️</span>
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl shadow-sm border border-blue-100 p-5 hover:shadow-md transition-shadow">
+          <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl shadow-sm border border-blue-100 p-3 sm:p-4 md:p-5 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">With History</p>
-                <p className="text-3xl font-bold text-blue-600">{summary.withHistory}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] xs:text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 truncate">With History</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-600">{summary.withHistory}</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                <span className="text-2xl">📋</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 ml-2">
+                <span className="text-base sm:text-xl md:text-2xl">📋</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6 overflow-hidden">
           <div className="bg-gradient-to-r from-gray-50 to-white border-b border-gray-200">
-            <nav className="flex -mb-px overflow-x-auto">
+            <nav className="flex -mb-px overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => {
                   setActiveTab('active');
                   setStatusFilter('active');
                 }}
-                className={`relative py-4 px-6 text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`relative py-3 sm:py-4 px-4 sm:px-6 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'active'
                     ? 'text-blue-600 bg-white'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                <span className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${activeTab === 'active' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
-                  Active HODs
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                <span className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${activeTab === 'active' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                  <span className="hidden xs:inline">Active HODs</span>
+                  <span className="xs:hidden">Active</span>
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
                     activeTab === 'active' 
                       ? 'bg-blue-100 text-blue-700' 
                       : 'bg-gray-200 text-gray-600'
@@ -501,16 +503,17 @@ const HODManagement = () => {
                   setActiveTab('inactive');
                   setStatusFilter('inactive');
                 }}
-                className={`relative py-4 px-6 text-sm font-semibold transition-all whitespace-nowrap ${
+                className={`relative py-3 sm:py-4 px-4 sm:px-6 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'inactive'
                     ? 'text-blue-600 bg-white'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                <span className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${activeTab === 'inactive' ? 'bg-red-500' : 'bg-gray-400'}`}></span>
-                  Inactive / Previous HODs
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                <span className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${activeTab === 'inactive' ? 'bg-red-500' : 'bg-gray-400'}`}></span>
+                  <span className="hidden sm:inline">Inactive / Previous HODs</span>
+                  <span className="sm:hidden">Inactive</span>
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
                     activeTab === 'inactive' 
                       ? 'bg-blue-100 text-blue-700' 
                       : 'bg-gray-200 text-gray-600'
@@ -526,17 +529,17 @@ const HODManagement = () => {
           </div>
 
           {/* Filters */}
-          <div className="p-3 md:p-4 border-b border-gray-200 flex flex-col md:flex-row flex-wrap gap-3 md:gap-4 items-stretch md:items-center">
-            <div className="flex-1 min-w-[200px]">
+          <div className="p-3 sm:p-4 border-b border-gray-200 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center">
+            <div className="flex-1 min-w-0 w-full sm:min-w-[200px]">
               <input
                 type="text"
                 placeholder="🔍 Search by department, HOD name, or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 md:px-4 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap w-full sm:w-auto">
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -549,7 +552,7 @@ const HODManagement = () => {
                     setActiveTab('inactive');
                   }
                 }}
-                className="flex-1 md:flex-none px-3 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 sm:flex-none min-w-[120px] sm:min-w-0 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="active">Active Only</option>
                 <option value="inactive">Inactive Only</option>
@@ -557,7 +560,7 @@ const HODManagement = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="flex-1 md:flex-none px-3 py-2 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 sm:flex-none min-w-[140px] sm:min-w-0 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="department">Sort by Department</option>
                 <option value="assignedDate">Sort by Assigned Date</option>
@@ -1119,56 +1122,75 @@ const HODManagement = () => {
 
       {/* History Modal */}
       {showHistoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] sm:max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate pr-2">
                 HOD History - {selectedDepartment?.department || 'Department'}
               </h3>
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 flex-shrink-0 p-1"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="px-6 py-4">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">HOD Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned On</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deactivated On</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tenure</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {departmentHistory.map((record, idx) => (
-                    <tr key={idx}>
-                      <td className="px-4 py-3 text-sm text-gray-900">{record.hodId?.name || 'Unknown'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{record.hodId?.email || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">{getStatusBadge(record.status)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {new Date(record.assignedOn).toLocaleDateString('en-IN')}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {record.deactivatedOn ? new Date(record.deactivatedOn).toLocaleDateString('en-IN') : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {record.tenureDays} days
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {record.assignedBy?.name || 'Unknown'}
-                      </td>
+            <div className="px-3 sm:px-6 py-3 sm:py-4 overflow-y-auto flex-1">
+              {/* Mobile Card View */}
+              <div className="block sm:hidden space-y-3">
+                {departmentHistory.map((record, idx) => (
+                  <div key={idx} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <div className="space-y-2 text-sm">
+                      <div><span className="font-medium text-gray-600">HOD:</span> <span className="text-gray-900">{record.hodId?.name || 'Unknown'}</span></div>
+                      <div><span className="font-medium text-gray-600">Email:</span> <span className="text-gray-500 break-all">{record.hodId?.email || 'N/A'}</span></div>
+                      <div><span className="font-medium text-gray-600">Status:</span> {getStatusBadge(record.status)}</div>
+                      <div><span className="font-medium text-gray-600">Assigned:</span> <span className="text-gray-500">{new Date(record.assignedOn).toLocaleDateString('en-IN')}</span></div>
+                      <div><span className="font-medium text-gray-600">Deactivated:</span> <span className="text-gray-500">{record.deactivatedOn ? new Date(record.deactivatedOn).toLocaleDateString('en-IN') : '-'}</span></div>
+                      <div><span className="font-medium text-gray-600">Tenure:</span> <span className="text-gray-500">{record.tenureDays} days</span></div>
+                      <div><span className="font-medium text-gray-600">Assigned By:</span> <span className="text-gray-500">{record.assignedBy?.name || 'Unknown'}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">HOD Name</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned On</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deactivated On</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tenure</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned By</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {departmentHistory.map((record, idx) => (
+                      <tr key={idx}>
+                        <td className="px-4 py-3 text-sm text-gray-900">{record.hodId?.name || 'Unknown'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{record.hodId?.email || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm">{getStatusBadge(record.status)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {new Date(record.assignedOn).toLocaleDateString('en-IN')}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {record.deactivatedOn ? new Date(record.deactivatedOn).toLocaleDateString('en-IN') : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {record.tenureDays} days
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {record.assignedBy?.name || 'Unknown'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -1176,14 +1198,14 @@ const HODManagement = () => {
 
       {/* Add/Replace HOD Modal */}
       {(showAddModal || showReplaceModal) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                 {showAddModal ? 'Add New HOD' : 'Replace HOD'}
               </h3>
             </div>
-            <form onSubmit={handleSubmit} className="px-6 py-4">
+            <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-4">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
@@ -1218,9 +1240,9 @@ const HODManagement = () => {
                   {formData.mobile && formData.mobile.length !== 10 && <p className="mt-1 text-xs text-red-600">Mobile number must be exactly 10 digits</p>}
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button type="button" onClick={() => { setShowAddModal(false); setShowReplaceModal(false); setFormData({ name: '', email: '', password: '', mobile: '', department: '' }); }} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={submitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{submitting ? 'Processing...' : showAddModal ? 'Create HOD' : 'Replace HOD'}</button>
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6">
+                <button type="button" onClick={() => { setShowAddModal(false); setShowReplaceModal(false); setFormData({ name: '', email: '', password: '', mobile: '', department: '' }); }} className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm sm:text-base">Cancel</button>
+                <button type="submit" disabled={submitting} className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm sm:text-base">{submitting ? 'Processing...' : showAddModal ? 'Create HOD' : 'Replace HOD'}</button>
               </div>
             </form>
           </div>
@@ -1229,12 +1251,12 @@ const HODManagement = () => {
 
       {/* Edit HOD Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Edit HOD</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Edit HOD</h3>
             </div>
-            <form onSubmit={handleSubmit} className="px-6 py-4">
+            <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-4">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
@@ -1250,9 +1272,9 @@ const HODManagement = () => {
                   {formData.mobile && formData.mobile.length !== 10 && <p className="mt-1 text-xs text-red-600">Mobile number must be exactly 10 digits</p>}
                 </div>
               </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button type="button" onClick={() => { setShowEditModal(false); setFormData({ name: '', email: '', password: '', mobile: '', department: '' }); }} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={submitting} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{submitting ? 'Updating...' : 'Update HOD'}</button>
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6">
+                <button type="button" onClick={() => { setShowEditModal(false); setFormData({ name: '', email: '', password: '', mobile: '', department: '' }); }} className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm sm:text-base">Cancel</button>
+                <button type="submit" disabled={submitting} className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm sm:text-base">{submitting ? 'Updating...' : 'Update HOD'}</button>
               </div>
             </form>
           </div>
