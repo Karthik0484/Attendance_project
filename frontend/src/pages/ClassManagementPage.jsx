@@ -110,49 +110,49 @@ const ClassManagementPage = () => {
       <EnhancedFacultyNavbar />
 
       {/* Main Content */}
-      <main className="pt-24">
+      <main className="pt-20 sm:pt-24 md:pt-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Class Management</h1>
-            <p className="mt-2 text-gray-600">
+          {/* Header - Mobile Responsive */}
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Class Management</h1>
+            <p className="mt-2 text-sm sm:text-base text-gray-600">
               Manage your assigned classes and access attendance features
             </p>
           </div>
 
-          {/* Assigned Classes Section */}
+          {/* Assigned Classes Section - Mobile Responsive */}
           <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">Your Assigned Classes</h2>
-              <p className="text-sm text-gray-500 mt-1">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Your Assigned Classes</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
                 Click "Manage" to access attendance, reports, and student data for each class
               </p>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {assignedClasses.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {assignedClasses.map((cls, index) => {
                     const isActive = cls.status === 'Active' || cls.isActive;
                     
                     return (
                       <div 
                         key={cls.classId || index} 
-                        className={`rounded-lg border p-6 transition-all ${
+                        className={`rounded-lg border p-4 sm:p-6 transition-all ${
                           isActive 
                             ? 'bg-gray-50 border-gray-200 hover:shadow-md' 
                             : 'bg-gray-100 border-gray-300 opacity-75'
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h3 className={`text-lg font-semibold mb-2 ${
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4">
+                          <div className="flex-1 min-w-0">
+                            <h3 className={`text-base sm:text-lg font-semibold mb-2 break-words ${
                               isActive ? 'text-gray-900' : 'text-gray-600'
                             }`}>
                               {cls.batch} | {cls.year} | Semester {cls.semester} | Section {cls.section}
                             </h3>
                             
-                            <div className="space-y-2 text-sm text-gray-600">
+                            <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-600">
                               <div className="flex items-center">
                                 <span className="font-medium mr-2">Batch:</span>
                                 <span className={`font-semibold ${
@@ -190,7 +190,7 @@ const ClassManagementPage = () => {
                             </div>
                           </div>
 
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 ${
                             isActive 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-gray-200 text-gray-600'
@@ -199,21 +199,21 @@ const ClassManagementPage = () => {
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-gray-500">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mt-4">
+                          <div className="text-xs sm:text-sm text-gray-500">
                             {cls.role || 'Class Advisor'}
                           </div>
                           {isActive ? (
                             <button
                               onClick={() => handleManageClass(cls.classId)}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                              className="w-full sm:w-auto bg-blue-600 text-white px-4 sm:px-5 py-2 rounded-md hover:bg-blue-700 transition-colors text-xs sm:text-sm font-medium"
                             >
                               Manage Class
                             </button>
                           ) : (
                             <button
                               onClick={() => handleManageClass(cls.classId)}
-                              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors text-sm font-medium"
+                              className="w-full sm:w-auto bg-gray-600 text-white px-4 sm:px-5 py-2 rounded-md hover:bg-gray-700 transition-colors text-xs sm:text-sm font-medium"
                               title="View archived class data (read-only)"
                             >
                               View Archive

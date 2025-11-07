@@ -35,7 +35,7 @@ export const projectInfo = {
       name: "Dushyanth.C",
       role: "Backend Developer / Team Lead",
       avatar: "/team/dushyanth.jpg", // 📸 Images moved to public/team folder
-      email: "dushyanth@example.com",
+      email: "dushyanthd912@gmail.com",
       github: "",
       linkedin: ""
     },
@@ -44,7 +44,7 @@ export const projectInfo = {
       name: "Balaji.S",
       role: "Frontend Developer",
       avatar: "/team/balaji.jpg", // 📸 Images moved to public/team folder
-      email: "balaji@example.com",
+      email: "balajishanmugam2005@gmail.com",
       github: "",
       linkedin: ""
     },
@@ -53,7 +53,7 @@ export const projectInfo = {
       name: "Aravind.K",
       role: "Database Engineer",
       avatar: "/team/aravind.jpg", // 📸 Images moved to public/team folder
-      email: "aravind@example.com",
+      email: "aravindaravind19720@gmail.com",
       github: "",
       linkedin: ""
     },
@@ -62,7 +62,7 @@ export const projectInfo = {
       name: "Kishore.S",
       role: "UI/UX Designer",
       avatar: "/team/kishore.jpg", // 📸 Images moved to public/team folder
-      email: "kishore@example.com",
+      email: "kishorerack97@gmail.com",
       github: "",
       linkedin: ""
     }

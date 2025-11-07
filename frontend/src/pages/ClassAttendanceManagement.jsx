@@ -171,14 +171,91 @@ const ClassAttendanceManagement = () => {
     setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
   };
 
+  // Icon components for tabs
+  const TabIcon = ({ children, className = "w-5 h-5" }) => (
+    <span className={`inline-flex items-center justify-center ${className}`}>
+      {children}
+    </span>
+  );
+
   const tabs = [
-    { id: 'mark', label: 'Mark Attendance', icon: '📝' },
-    { id: 'edit', label: 'Edit Attendance', icon: '✏️' },
-    { id: 'history', label: 'Attendance History', icon: '📊' },
-    { id: 'holidays', label: 'Holiday Management', icon: '🎉' },
-    { id: 'reviews', label: 'Absence Reviews', icon: '📋' },
-    { id: 'absentee', label: 'Absentee Report', icon: '📑' },
-    { id: 'students', label: 'Student Management', icon: '👥' }
+    { 
+      id: 'mark', 
+      label: 'Mark Attendance', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </TabIcon>
+      )
+    },
+    { 
+      id: 'edit', 
+      label: 'Edit Attendance', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </TabIcon>
+      )
+    },
+    { 
+      id: 'history', 
+      label: 'Attendance History', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </TabIcon>
+      )
+    },
+    { 
+      id: 'holidays', 
+      label: 'Holiday Management', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </TabIcon>
+      )
+    },
+    { 
+      id: 'reviews', 
+      label: 'Absence Reviews', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </TabIcon>
+      )
+    },
+    { 
+      id: 'absentee', 
+      label: 'Absentee Report', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </TabIcon>
+      )
+    },
+    { 
+      id: 'students', 
+      label: 'Student Management', 
+      icon: (
+        <TabIcon>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        </TabIcon>
+      )
+    }
   ];
 
   if (loading) {
@@ -228,30 +305,30 @@ const ClassAttendanceManagement = () => {
         />
       )}
 
-      {/* Header */}
+      {/* Header - Mobile Responsive */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 py-3 sm:py-4">
+            <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
               <button
                 onClick={handleBackToDashboard}
-                className="mr-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                 title="Back to Class Management"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-            <div>
-                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-3">
-                Class Management - {classData.batch} | {classData.year} | Semester {classData.semester} | Section {classData.section}
+              <div className="min-w-0 flex-1">
+                <h1 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 flex flex-wrap items-center gap-2 sm:gap-3">
+                  <span className="break-words">Class Management - {classData.batch} | {classData.year} | Semester {classData.semester} | Section {classData.section}</span>
                 {classData.isArchived && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                    <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 flex-shrink-0">
                     📦 Archived Class
                   </span>
                 )}
               </h1>
-                <p className="text-sm text-gray-500">
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
                   {classData.isArchived 
                     ? 'Viewing archived class - Read-only access for historical data' 
                     : 'Manage attendance, students, and generate reports for this class'}
@@ -262,28 +339,105 @@ const ClassAttendanceManagement = () => {
         </div>
             </div>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation - Two-Row Grid on Mobile, Horizontal on Desktop */}
       <div className="bg-gradient-to-b from-gray-50 to-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-2 py-2">
+          {/* Mobile: 2-Row Grid Layout (< 768px) */}
+          <nav className="md:hidden grid grid-cols-2 gap-2 py-2">
+            {/* Row 1: 2 columns - Mark Attendance, Edit Attendance */}
+            <div className="col-span-2 grid grid-cols-2 gap-2">
+              {tabs.filter(tab => ['mark', 'edit'].includes(tab.id)).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative px-3 py-3 font-medium text-xs transition-all duration-300 rounded-lg flex items-center justify-center gap-1.5 min-h-[48px] ${
+                    activeTab === tab.id
+                      ? 'text-white bg-blue-600 shadow-md'
+                      : 'text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 flex-1 justify-center">
+                    <span className={`flex-shrink-0 ${activeTab === tab.id ? 'text-white' : 'text-gray-600'}`}>
+                      {tab.icon}
+                    </span>
+                    <span className="font-semibold text-center leading-tight">{tab.label}</span>
+                  </span>
+                  {activeTab === tab.id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-700 rounded-b-lg"></div>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* Row 2: 3 columns - Attendance History, Absentee Report, Student Management */}
+            <div className="col-span-2 grid grid-cols-3 gap-2">
+              {tabs.filter(tab => ['history', 'absentee', 'students'].includes(tab.id)).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative px-2 py-3 font-medium text-xs transition-all duration-300 rounded-lg flex flex-col items-center justify-center gap-1 min-h-[48px] ${
+                    activeTab === tab.id
+                      ? 'text-white bg-blue-600 shadow-md'
+                      : 'text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <span className={`flex-shrink-0 ${activeTab === tab.id ? 'text-white' : 'text-gray-600'}`}>
+                    {tab.icon}
+                  </span>
+                  <span className="font-semibold text-center leading-tight text-[10px] sm:text-xs">{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-700 rounded-b-lg"></div>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* Additional tabs in a third row (Holiday Management, Absence Reviews) */}
+            {tabs.filter(tab => ['holidays', 'reviews'].includes(tab.id)).length > 0 && (
+              <div className="col-span-2 grid grid-cols-2 gap-2">
+                {tabs.filter(tab => ['holidays', 'reviews'].includes(tab.id)).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative px-3 py-3 font-medium text-xs transition-all duration-300 rounded-lg flex items-center justify-center gap-1.5 min-h-[48px] ${
+                      activeTab === tab.id
+                        ? 'text-white bg-blue-600 shadow-md'
+                        : 'text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 flex-1 justify-center">
+                      <span className={`flex-shrink-0 ${activeTab === tab.id ? 'text-white' : 'text-gray-600'}`}>
+                        {tab.icon}
+                      </span>
+                      <span className="font-semibold text-center leading-tight">{tab.label}</span>
+                    </span>
+                    {activeTab === tab.id && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-700 rounded-b-lg"></div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </nav>
+
+          {/* Desktop/Tablet: Horizontal Scrollable Layout (≥ 768px) */}
+          <nav className="hidden md:flex overflow-x-auto scrollbar-hide space-x-2 py-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative px-5 py-3 font-medium text-sm transition-all duration-300 rounded-lg group ${
+                className={`relative px-4 py-2 font-medium text-sm md:text-base transition-all duration-300 rounded-lg flex-shrink-0 whitespace-nowrap flex items-center justify-center gap-2 min-h-[44px] ${
                   activeTab === tab.id
-                    ? 'text-blue-700 bg-white shadow-md transform scale-105'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50 hover:shadow-sm'
+                    ? 'text-white bg-blue-600 shadow-md hover:bg-blue-700'
+                    : 'text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
                 }`}
               >
-                <span className="flex items-center gap-2.5">
-                  <span className={`text-xl transition-transform duration-300 ${
-                    activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'
-                  }`}>{tab.icon}</span>
+                <span className="flex items-center gap-2">
+                  <span className={`flex-shrink-0 ${activeTab === tab.id ? 'text-white' : 'text-gray-600'}`}>
+                    {tab.icon}
+                  </span>
                   <span className="font-semibold">{tab.label}</span>
                 </span>
                 {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-full"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-700 rounded-b-lg"></div>
                 )}
               </button>
             ))}
@@ -291,8 +445,8 @@ const ClassAttendanceManagement = () => {
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Tab Content - Mobile Responsive */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-4 sm:py-6">
         {activeTab === 'mark' && (
           <MarkAttendanceTab 
             classData={classData} 
@@ -805,22 +959,22 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
 
   return (
     <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-medium text-gray-900">Mark Daily Attendance</h2>
-              <p className="text-sm text-gray-500">Mark attendance for today's class</p>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base sm:text-lg font-medium text-gray-900">Mark Daily Attendance</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">Mark attendance for today's class</p>
               {checkingHoliday ? (
-                <p className="text-sm text-blue-500">Checking holiday status...</p>
+                <p className="text-xs sm:text-sm text-blue-500 mt-2">Checking holiday status...</p>
               ) : isHoliday ? (
-                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <div className="flex items-center">
-                    <span className="text-yellow-600 text-lg mr-2">🎉</span>
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800">
+                <div className="mt-2 p-2 sm:p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="flex items-start sm:items-center gap-2">
+                    <span className="text-yellow-600 text-base sm:text-lg flex-shrink-0">🎉</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs sm:text-sm font-medium text-yellow-800">
                         Today is a holiday: {holidayInfo?.reason}
                       </p>
-                      <p className="text-xs text-yellow-600">
+                      <p className="text-xs text-yellow-600 mt-1">
                         {holidayInfo?.scope === 'global' ? 'Global holiday' : 'Class holiday'} - 
                         Cannot mark attendance
                       </p>
@@ -835,13 +989,13 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 checkHolidayStatus();
               }}
               disabled={checkingAttendance || checkingHoliday}
-              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50"
+              className="w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
             >
               {checkingAttendance || checkingHoliday ? 'Refreshing...' : 'Refresh Status'}
             </button>
           </div>
         </div>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {isHoliday ? (
           <div className="text-center py-8">
             <div className="text-6xl mb-4">🎉</div>
@@ -856,10 +1010,11 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             </p>
           </div>
         ) : (
-          <form onSubmit={handleMarkAttendance} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form onSubmit={handleMarkAttendance} className="space-y-4 sm:space-y-6">
+          {/* Date and Stats Section - Stack on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                 Date
               </label>
                 <input 
@@ -871,12 +1026,12 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                   year: 'numeric' 
                 })}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
               />
               <p className="text-xs text-gray-500 mt-1">Today's date - attendance can only be marked for today</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                 Total Students Present
               </label>
               <input
@@ -884,13 +1039,29 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 name="present"
                 value={presentCount}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md bg-gray-50"
                 />
               </div>
             </div>
 
+            {/* Stats Cards - Stack on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-green-700 font-medium mb-1">Present</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600">{presentCount}</p>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-red-700 font-medium mb-1">Absent</p>
+                <p className="text-xl sm:text-2xl font-bold text-red-600">{absentCount}</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                <p className="text-xs sm:text-sm text-blue-700 font-medium mb-1">OD</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600">{odCount}</p>
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
               Absent Students (Enter roll numbers separated by commas)
               </label>
               <textarea
@@ -899,12 +1070,12 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 onChange={handleAttendanceChange}
               placeholder="e.g., STU001, STU003, STU005"
                 rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
               On Duty (OD) Students (Enter roll numbers separated by commas)
               </label>
               <textarea
@@ -913,15 +1084,15 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 onChange={handleAttendanceChange}
               placeholder="e.g., STU002, STU004, STU006"
                 rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
               />
             </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
                 <button
                   type="submit"
                   disabled={attendanceLoading || attendanceExists || checkingAttendance}
-                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                  className={`w-full sm:w-auto px-6 py-2.5 sm:py-3 rounded-md font-medium text-sm sm:text-base transition-colors ${
                     attendanceExists 
                       ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
                       : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed'
@@ -944,85 +1115,140 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
           </form>
         )}
 
-        {/* Students List */}
-        <div className="mt-8">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Students in Class</h3>
-            <div className="overflow-x-auto">
-              <table key={`attendance-table-${forceUpdate}`} className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Roll Number
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Today's Attendance
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {(students || []).map((student) => (
-                  <tr key={student._id || student.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {student.rollNumber || student.regNo || student.rollNo || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {/* Students List - Responsive Table/Cards */}
+        <div className="mt-6 sm:mt-8">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Students in Class</h3>
+          
+          {/* Desktop Table View - Hidden on mobile */}
+          <div className="hidden md:block overflow-x-auto">
+            <table key={`attendance-table-${forceUpdate}`} className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Roll Number
+                  </th>
+                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Today's Attendance
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {(students || []).map((student) => (
+                <tr key={student._id || student.id} className="hover:bg-gray-50">
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {student.rollNumber || student.regNo || student.rollNo || 'N/A'}
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const studentId = student._id || student.id;
+                          console.log('🔗 Navigating to student profile:', studentId);
+                          console.log('👤 Student data:', student);
+                          console.log('🔍 Current URL:', window.location.href);
+                          console.log('🔍 Target URL:', `/student-detail/${studentId}`);
+                          
+                          // Test if navigate function is working
+                          try {
+                            navigate(`/student-detail/${studentId}`);
+                            console.log('✅ Navigation called successfully');
+                          } catch (error) {
+                            console.error('❌ Navigation error:', error);
+                          }
+                        }}
+                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                      >
+                        {student.name}
+                      </button>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 break-all">
+                      {student.email}
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
+                      {(() => {
+                        const rollNum = student.rollNumber || student.regNo || student.rollNo;
+                        const status = getStudentAttendanceStatus(rollNum);
+                        const statusColors = {
+                          'Present': 'bg-green-100 text-green-800',
+                          'Absent': 'bg-red-100 text-red-800',
+                          'OD': 'bg-blue-100 text-blue-800',
+                          'On Duty': 'bg-blue-100 text-blue-800',
+                          'Not Marked': 'bg-gray-100 text-gray-800'
+                        };
+                        // Normalize status display (handle both 'OD' and 'On Duty')
+                        const displayStatus = status === 'od' || status === 'OD' ? 'OD' : status;
+                        return (
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[displayStatus] || statusColors['Not Marked']}`}>
+                            {displayStatus}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Card View - Shown on mobile/tablet */}
+        <div className="md:hidden space-y-3">
+          {(students || []).map((student) => {
+            const rollNum = student.rollNumber || student.regNo || student.rollNo;
+            const status = getStudentAttendanceStatus(rollNum);
+            const statusColors = {
+              'Present': 'bg-green-100 text-green-800 border-green-200',
+              'Absent': 'bg-red-100 text-red-800 border-red-200',
+              'OD': 'bg-blue-100 text-blue-800 border-blue-200',
+              'On Duty': 'bg-blue-100 text-blue-800 border-blue-200',
+              'Not Marked': 'bg-gray-100 text-gray-800 border-gray-200'
+            };
+            const displayStatus = status === 'od' || status === 'OD' ? 'OD' : status;
+            
+            return (
+              <div key={student._id || student.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex flex-col space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-xs font-medium text-gray-500">Roll Number:</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {student.rollNumber || student.regNo || student.rollNo || 'N/A'}
+                        </p>
+                      </div>
+                      <div className="mb-2">
                         <button
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             const studentId = student._id || student.id;
-                            console.log('🔗 Navigating to student profile:', studentId);
-                            console.log('👤 Student data:', student);
-                            console.log('🔍 Current URL:', window.location.href);
-                            console.log('🔍 Target URL:', `/student-detail/${studentId}`);
-                            
-                            // Test if navigate function is working
-                            try {
-                              navigate(`/student-detail/${studentId}`);
-                              console.log('✅ Navigation called successfully');
-                            } catch (error) {
-                              console.error('❌ Navigation error:', error);
-                            }
+                            navigate(`/student-detail/${studentId}`);
                           }}
-                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                          className="text-sm sm:text-base font-semibold text-blue-600 hover:text-blue-800 hover:underline"
                         >
                           {student.name}
                         </button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {student.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {(() => {
-                          const rollNum = student.rollNumber || student.regNo || student.rollNo;
-                          const status = getStudentAttendanceStatus(rollNum);
-                          const statusColors = {
-                            'Present': 'bg-green-100 text-green-800',
-                            'Absent': 'bg-red-100 text-red-800',
-                            'OD': 'bg-blue-100 text-blue-800',
-                            'On Duty': 'bg-blue-100 text-blue-800',
-                            'Not Marked': 'bg-gray-100 text-gray-800'
-                          };
-                          // Normalize status display (handle both 'OD' and 'On Duty')
-                          const displayStatus = status === 'od' || status === 'OD' ? 'OD' : status;
-                          return (
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[displayStatus] || statusColors['Not Marked']}`}>
-                              {displayStatus}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-medium text-gray-500">Email:</p>
+                        <p className="text-xs sm:text-sm text-gray-600 break-all">{student.email}</p>
+                      </div>
+                    </div>
+                    <span className={`inline-flex px-2.5 py-1.5 text-xs font-semibold rounded-full border ${statusColors[displayStatus] || statusColors['Not Marked']} flex-shrink-0`}>
+                      {displayStatus}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
         </div>
       </div>
     </div>
@@ -1276,47 +1502,47 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
     <div className="space-y-6">
       {/* Edit Form */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">Edit Today's Attendance</h2>
-          <p className="text-sm text-gray-500">Modify today's attendance record</p>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <h2 className="text-base sm:text-lg font-medium text-gray-900">Edit Today's Attendance</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">Modify today's attendance record</p>
         </div>
-        <div className="p-6">
-          <form onSubmit={handleUpdateAttendance} className="space-y-6">
+        <div className="p-4 sm:p-6">
+          <form onSubmit={handleUpdateAttendance} className="space-y-4 sm:space-y-6">
             {/* Summary - show actual data if attendance exists, otherwise show current counts */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Date</label>
-                <p className="mt-1 text-sm text-gray-900">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">Date</label>
+                <p className="mt-1 text-xs sm:text-sm text-gray-900">
                   {attendanceData 
                     ? new Date(attendanceData.date).toLocaleDateString()
                     : new Date().toLocaleDateString()}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Total Students</label>
-                <p className="mt-1 text-sm text-gray-900">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">Total</label>
+                <p className="mt-1 text-xs sm:text-sm font-semibold text-gray-900">
                   {attendanceData ? attendanceData.totalStudents : studentRecords.length}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Present</label>
-                <p className="mt-1 text-sm text-gray-900">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">Present</label>
+                <p className="mt-1 text-xs sm:text-sm font-semibold text-green-600">
                   {attendanceData 
                     ? attendanceData.totalPresent 
                     : studentRecords.filter(s => s.status === 'present').length}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">OD</label>
-                <p className="mt-1 text-sm text-gray-900">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">OD</label>
+                <p className="mt-1 text-xs sm:text-sm font-semibold text-blue-600">
                   {attendanceData 
                     ? (attendanceData.totalOD || 0)
                     : studentRecords.filter(s => s.status === 'od').length}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Absent</label>
-                <p className="mt-1 text-sm text-gray-900">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">Absent</label>
+                <p className="mt-1 text-xs sm:text-sm font-semibold text-red-600">
                   {attendanceData 
                     ? attendanceData.totalAbsent 
                     : studentRecords.filter(s => s.status === 'absent').length}
@@ -1326,7 +1552,7 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
 
             {/* Notes */}
             <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="notes" className="block text-xs sm:text-sm font-medium text-gray-700">
                 Notes (Optional)
               </label>
               <textarea
@@ -1335,16 +1561,16 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 resize-y"
                 placeholder="Add any additional notes..."
               />
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
               <button
                 type="submit"
                 disabled={updating}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-6 py-2.5 sm:py-3 bg-blue-600 text-white text-sm sm:text-base rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {updating ? 'Updating...' : 'Update Attendance'}
               </button>
@@ -1353,26 +1579,28 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
         </div>
       </div>
 
-      {/* Students List with Status Toggles */}
+      {/* Students List with Status Toggles - Responsive */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Students in Class</h3>
-          <p className="text-sm text-gray-500">Toggle attendance status for each student</p>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900">Students in Class</h3>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">Toggle attendance status for each student</p>
         </div>
-        <div className="overflow-x-auto">
+        
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Roll Number
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
               </tr>
@@ -1380,16 +1608,16 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
             <tbody className="bg-white divide-y divide-gray-200">
               {studentRecords.map((student) => (
                 <tr key={student.studentId} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {student.rollNumber}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {student.name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 break-all">
                     {student.email || 'N/A'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex items-center space-x-2 flex-wrap gap-1">
                       <button
                         onClick={() => handleStatusChange(student.studentId, 'present')}
@@ -1427,6 +1655,61 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-3 p-4">
+          {studentRecords.map((student) => (
+            <div key={student.studentId} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex flex-col space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs font-medium text-gray-500">Roll:</p>
+                      <p className="text-sm font-semibold text-gray-900">{student.rollNumber}</p>
+                    </div>
+                    <p className="text-sm sm:text-base font-semibold text-gray-900 mb-1">{student.name}</p>
+                    <p className="text-xs text-gray-600 break-all">{student.email || 'N/A'}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs font-medium text-gray-700">Status:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleStatusChange(student.studentId, 'present')}
+                      className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        student.status === 'present'
+                          ? 'bg-green-100 text-green-800 border-2 border-green-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-green-50'
+                      }`}
+                    >
+                      Present
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(student.studentId, 'od')}
+                      className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        student.status === 'od'
+                          ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-blue-50'
+                      }`}
+                    >
+                      OD
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(student.studentId, 'absent')}
+                      className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        student.status === 'absent'
+                          ? 'bg-red-100 text-red-800 border-2 border-red-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-red-50'
+                      }`}
+                    >
+                      Absent
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -2372,15 +2655,15 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Controls */}
+      {/* Header with Controls - Mobile Responsive */}
       <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-medium text-gray-900">Attendance History</h2>
-              <p className="text-sm text-gray-500">View, filter, and analyze attendance records with real-time sync</p>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base sm:text-lg font-medium text-gray-900">Attendance History</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">View, filter, and analyze attendance records with real-time sync</p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -2389,14 +2672,14 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   onChange={(e) => setAutoRefresh(e.target.checked)}
                   className="rounded"
                 />
-                <label htmlFor="autoRefresh" className="text-sm text-gray-600">Auto-refresh</label>
+                <label htmlFor="autoRefresh" className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Auto-refresh</label>
               </div>
               <button
                 onClick={fetchAttendanceHistory}
                 disabled={loading}
-                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 flex items-center"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 flex items-center"
               >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 Refresh
@@ -2404,12 +2687,13 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
               <button
                 onClick={exportToExcel}
                 disabled={false}
-                className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
+                className="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
               >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 mr-1.5 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                📊 Export Excel
+                <span className="hidden sm:inline">Export Excel</span>
+                <span className="sm:hidden">Export</span>
               </button>
             </div>
           </div>
@@ -2420,15 +2704,15 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
           )}
         </div>
         
-        <div className="p-6">
-          {/* Filter Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="p-4 sm:p-6">
+          {/* Filter Controls - Mobile Responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">View Mode</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">View Mode</label>
                 <select
                   value={viewMode}
                   onChange={(e) => handleViewModeChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="single">Single Date</option>
                   <option value="weekly">Date Range (Weekly)</option>
@@ -2438,7 +2722,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
             
             {viewMode === 'single' ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Select Date</label>
                 <input
                   type="date"
                   value={formatDateForDisplay(singleDate)}
@@ -2451,14 +2735,14 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                     }
                   }}
                   max={new Date().toISOString().split('T')[0]}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                  className={`w-full px-3 py-2 text-sm sm:text-base border rounded-md focus:outline-none focus:ring-2 ${
                     !isValidDate(singleDate) || isDateInFuture(singleDate)
                       ? 'border-red-300 focus:ring-red-500 bg-red-50'
                       : 'border-gray-300 focus:ring-blue-500'
                   }`}
                 />
                 {(!isValidDate(singleDate) || isDateInFuture(singleDate)) && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">
                     {!isValidDate(singleDate) 
                       ? 'Please select a valid date' 
                       : 'Cannot view attendance for future dates'
@@ -2469,7 +2753,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
             ) : (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     {viewMode === 'weekly' ? 'Week Start Date' : 'Month Start Date'}
                   </label>
                   <input
@@ -2477,7 +2761,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                     value={dateRange.startDate}
                     onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
                     max={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   {viewMode === 'weekly' && (
                     <p className="text-xs text-gray-500 mt-1">Auto-set to 7 days ago</p>
@@ -2487,7 +2771,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     {viewMode === 'weekly' ? 'Week End Date' : 'Month End Date'}
                   </label>
                   <input
@@ -2495,43 +2779,43 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                     value={dateRange.endDate}
                     onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
                     max={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">Auto-set to today</p>
                 </div>
               </>
             )}
             
-            <div className="flex items-center">
+            <div className="flex items-end sm:items-center">
               <button
                 onClick={fetchAttendanceHistory}
                 disabled={loading || (viewMode === 'single' && (!isValidDate(singleDate) || isDateInFuture(singleDate)))}
-                className={`w-full px-4 py-2 rounded-md flex items-center justify-center ${
+                className={`w-full px-4 py-2.5 sm:py-2 text-sm sm:text-base rounded-md flex items-center justify-center gap-2 ${
                   loading || (viewMode === 'single' && (!isValidDate(singleDate) || isDateInFuture(singleDate)))
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                }${viewMode === 'single' ? ' align-btn-single-date' : viewMode !== 'single' ? ' align-btn-to-input-center' : ''}`}
+                }`}
               >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                View History
+                <span>View History</span>
               </button>
             </div>
           </div>
 
-          {/* Summary Cards */}
+          {/* Summary Cards - Mobile Responsive */}
           {(viewMode === 'single' ? attendanceHistory.length > 0 : rangeAttendanceData.length > 0) && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-blue-900">Total Students</h3>
-                <p className="text-2xl font-bold text-blue-600">{summaryStats.totalStudents}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
+              <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-medium text-blue-900">Total Students</h3>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">{summaryStats.totalStudents}</p>
               </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-green-900">
+              <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-medium text-green-900">
                   {viewMode === 'single' ? 'Present (incl. OD)' : 'Working Days'}
                 </h3>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1">
                   {viewMode === 'single' ? 
                     (attendanceHistory.filter(r => {
                       const status = r.status?.toLowerCase() || '';
@@ -2541,11 +2825,11 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   }
                 </p>
               </div>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-blue-900">
+              <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-medium text-blue-900">
                   {viewMode === 'single' ? 'OD Today' : 'Avg Attendance'}
                 </h3>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">
                   {viewMode === 'single' ? 
                     (attendanceHistory.filter(r => {
                       const status = r.status?.toLowerCase() || '';
@@ -2555,11 +2839,11 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   }
                 </p>
               </div>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-purple-900">
+              <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-medium text-purple-900">
                   {viewMode === 'single' ? 'Absent Today' : 'Highest'}
                 </h3>
-                <p className="text-2xl font-bold text-purple-600">
+                <p className="text-xl sm:text-2xl font-bold text-purple-600 mt-1">
                   {viewMode === 'single' ? 
                     (attendanceHistory.filter(r => {
                       const status = r.status?.toLowerCase() || '';
@@ -2569,11 +2853,11 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   }
                 </p>
               </div>
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-yellow-900">
+              <div className="bg-yellow-50 p-3 sm:p-4 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-medium text-yellow-900">
                   {viewMode === 'single' ? 'Attendance %' : 'Highest'}
                 </h3>
-                <p className="text-2xl font-bold text-yellow-600">
+                <p className="text-xl sm:text-2xl font-bold text-yellow-600 mt-1">
                   {viewMode === 'single' ? 
                     (attendanceHistory.length > 0 
                       ? `${Math.round((attendanceHistory.filter(r => {
@@ -2585,14 +2869,14 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   }
                 </p>
                 {viewMode !== 'single' && (
-                  <p className="text-sm text-yellow-700">{summaryStats.highestAttendance.percentage}%</p>
+                  <p className="text-xs sm:text-sm text-yellow-700 mt-1">{summaryStats.highestAttendance.percentage}%</p>
                 )}
               </div>
-              <div className="bg-red-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-red-900">
+              <div className="bg-red-50 p-3 sm:p-4 rounded-lg">
+                <h3 className="text-xs sm:text-sm font-medium text-red-900">
                   {viewMode === 'single' ? 'Status' : 'Lowest'}
                 </h3>
-                <p className="text-lg font-bold text-red-600">
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-red-600 mt-1">
                   {viewMode === 'single' ? 
                     (() => {
                       const presentAndOD = attendanceHistory.filter(r => {
@@ -2606,7 +2890,7 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                   }
                 </p>
                 {viewMode !== 'single' && (
-                  <p className="text-sm text-red-700">{summaryStats.lowestAttendance.percentage}%</p>
+                  <p className="text-xs sm:text-sm text-red-700 mt-1">{summaryStats.lowestAttendance.percentage}%</p>
                 )}
               </div>
             </div>
@@ -3089,117 +3373,174 @@ const StudentManagementTab = ({ classData, students, onToast, onStudentsUpdate, 
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-gray-900">Student Management</h2>
-            <p className="text-sm text-gray-500">Manage students in this class</p>
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900">Student Management</h2>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Manage students in this class</p>
           </div>
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={handleBulkUpload}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center"
+              className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 text-sm sm:text-base rounded-md hover:bg-green-700 flex items-center justify-center gap-2"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              Bulk Upload
+              <span>Bulk Upload</span>
             </button>
             <button
               onClick={() => setShowAddStudent(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 text-sm sm:text-base rounded-md hover:bg-blue-700 flex items-center justify-center gap-2"
             >
-              Add Student
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add Student</span>
             </button>
           </div>
         </div>
       </div>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {(students || []).length === 0 ? (
           <div className="text-center py-8">
-            <div className="text-gray-400 text-6xl mb-4">👥</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Students Found</h3>
-            <p className="text-gray-500 mb-4">No students are enrolled in this class yet.</p>
+            <div className="text-gray-400 text-4xl sm:text-6xl mb-4">👥</div>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No Students Found</h3>
+            <p className="text-sm sm:text-base text-gray-500 mb-4">No students are enrolled in this class yet.</p>
             <button
               onClick={() => setShowAddStudent(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 text-sm sm:text-base rounded-md hover:bg-blue-700"
             >
               Add First Student
             </button>
             </div>
           ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll Number</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {(students || []).map((student) => (
-                  <tr key={student._id || student.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {student.rollNumber}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const studentId = student._id || student.id;
-                          console.log('🔗 Navigating to student profile from Student Management:', studentId);
-                          console.log('👤 Student data:', student);
-                          console.log('🔍 Current URL:', window.location.href);
-                          console.log('🔍 Target URL:', `/student-detail/${studentId}`);
-                          
-                          // Test if navigate function is working
-                          try {
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll Number</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mobile</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Contact</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {(students || []).map((student) => (
+                    <tr key={student._id || student.id} className="hover:bg-gray-50">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {student.rollNumber}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const studentId = student._id || student.id;
                             navigate(`/student-detail/${studentId}`);
-                            console.log('✅ Navigation called successfully');
-                          } catch (error) {
-                            console.error('❌ Navigation error:', error);
-                          }
-                        }}
-                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                      >
-                        {student.name}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student.mobile || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {student.parentContact || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex space-x-2">
+                          }}
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        >
+                          {student.name}
+                        </button>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 break-all">
+                        {student.email}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {student.mobile || 'N/A'}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {student.parentContact || 'N/A'}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => setEditingStudent(student)}
+                            className="text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStudent(student._id || student.id)}
+                            className="text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {(students || []).map((student) => (
+                <div key={student._id || student.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="flex flex-col space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-xs font-medium text-gray-500">Roll Number:</p>
+                          <p className="text-sm font-semibold text-gray-900">{student.rollNumber}</p>
+                        </div>
+                        <div className="mb-2">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const studentId = student._id || student.id;
+                              navigate(`/student-detail/${studentId}`);
+                            }}
+                            className="text-sm sm:text-base font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            {student.name}
+                          </button>
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="flex items-start gap-2">
+                            <p className="text-xs font-medium text-gray-500 min-w-[80px]">Email:</p>
+                            <p className="text-xs sm:text-sm text-gray-600 break-all flex-1">{student.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-gray-500 min-w-[80px]">Mobile:</p>
+                            <p className="text-xs sm:text-sm text-gray-600">{student.mobile || 'N/A'}</p>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <p className="text-xs font-medium text-gray-500 min-w-[80px]">Parent:</p>
+                            <p className="text-xs sm:text-sm text-gray-600 break-all flex-1">{student.parentContact || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium text-gray-700">Actions:</p>
+                      <div className="flex gap-2">
                         <button
                           onClick={() => setEditingStudent(student)}
-                          className="text-blue-600 hover:text-blue-800"
+                          className="flex-1 px-3 py-2 text-xs sm:text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-colors"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDeleteStudent(student._id || student.id)}
-                          className="text-red-600 hover:text-red-800"
+                          className="flex-1 px-3 py-2 text-xs sm:text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium transition-colors"
                         >
                           Delete
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -3293,18 +3634,28 @@ const AddStudentModal = ({ onClose, onAdd, loading, classData }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Student</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-start sm:items-center justify-center p-4">
+      <div className="relative w-full max-w-md shadow-lg rounded-md bg-white mt-4 sm:mt-0">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Add New Student</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-1"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
             {/* Class Information (Read-only) */}
             <div className="bg-blue-50 p-3 rounded-md">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">Class Information</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <h4 className="text-xs sm:text-sm font-medium text-blue-900 mb-2">Class Information</h4>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                 <div>
                   <span className="text-blue-700">Batch:</span>
-                  <span className="ml-1 font-medium">{formData.batch || 'Loading...'}</span>
+                  <span className="ml-1 font-medium break-words">{formData.batch || 'Loading...'}</span>
                 </div>
                 <div>
                   <span className="text-blue-700">Year:</span>
@@ -3312,7 +3663,7 @@ const AddStudentModal = ({ onClose, onAdd, loading, classData }) => {
                 </div>
                 <div>
                   <span className="text-blue-700">Semester:</span>
-                  <span className="ml-1 font-medium">{formData.semester || 'Loading...'}</span>
+                  <span className="ml-1 font-medium break-words">{formData.semester || 'Loading...'}</span>
                 </div>
                 <div>
                   <span className="text-blue-700">Section:</span>
@@ -3328,43 +3679,43 @@ const AddStudentModal = ({ onClose, onAdd, loading, classData }) => {
 
             {/* Student Information */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Roll Number *</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Roll Number *</label>
               <input
                 type="text"
                 name="rollNumber"
                 value={formData.rollNumber}
                 onChange={handleChange}
                 placeholder="e.g., STU001, CS2024001"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Full Name *</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="Enter student's full name"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address *</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Email Address *</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="student@example.com"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Student Mobile *</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Student Mobile *</label>
               <input
                 type="tel"
                 name="mobile"
@@ -3372,12 +3723,12 @@ const AddStudentModal = ({ onClose, onAdd, loading, classData }) => {
                 onChange={handleChange}
                 placeholder="10-digit mobile number"
                 pattern="[0-9]{10}"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Parent's Contact *</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Parent's Contact *</label>
               <input
                 type="tel"
                 name="parentContact"
@@ -3385,12 +3736,12 @@ const AddStudentModal = ({ onClose, onAdd, loading, classData }) => {
                 onChange={handleChange}
                 placeholder="Parent's mobile number"
                 pattern="[0-9]{10}"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Password *</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Password *</label>
               <input
                 type="password"
                 name="password"
@@ -3398,22 +3749,22 @@ const AddStudentModal = ({ onClose, onAdd, loading, classData }) => {
                 onChange={handleChange}
                 placeholder="Minimum 6 characters"
                 minLength="6"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Adding...' : 'Add Student'}
               </button>
@@ -3448,78 +3799,88 @@ const EditStudentModal = ({ student, onClose, onSave, loading }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Student</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-start sm:items-center justify-center p-4">
+      <div className="relative w-full max-w-md shadow-lg rounded-md bg-white mt-4 sm:mt-0">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Edit Student</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 p-1"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Roll Number</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Roll Number</label>
               <input
                 type="text"
                 name="rollNumber"
                 value={formData.rollNumber}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Name</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mobile</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Mobile</label>
               <input
                 type="tel"
                 name="mobile"
                 value={formData.mobile}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Parent Contact</label>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Parent Contact</label>
               <input
                 type="tel"
                 name="parentContact"
                 value={formData.parentContact}
                 onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 block w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="w-full sm:w-auto px-4 py-2 text-sm sm:text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Saving...' : 'Save Changes'}
               </button>

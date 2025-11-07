@@ -144,20 +144,21 @@ const SemesterDetailPage = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center space-x-3 sm:space-x-4 w-full sm:w-auto">
               <button
                 onClick={handleBack}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
+                className="text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0"
+                aria-label="Go back"
               >
-                <span className="text-2xl">←</span>
+                <span className="text-xl sm:text-2xl">←</span>
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 truncate">
                   {semesterData.semesterName}
                 </h1>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600 truncate">
                   {semesterData.year} - Section {semesterData.section} - Class {semesterData.classAssigned}
                 </p>
               </div>
@@ -165,7 +166,7 @@ const SemesterDetailPage = () => {
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+              className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
             >
               <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
               <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
@@ -174,74 +175,75 @@ const SemesterDetailPage = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {/* Attendance Percentage */}
-          <div className={`rounded-lg shadow-md p-6 ${getPercentageColor(stats?.attendancePercentage || 0)}`}>
+          <div className={`rounded-lg shadow-md p-4 sm:p-6 ${getPercentageColor(stats?.attendancePercentage || 0)}`}>
             <div className="flex items-center mb-2">
-              <span className="text-3xl mr-3">📊</span>
-              <h3 className="text-sm font-medium">Attendance</h3>
+              <span className="text-2xl sm:text-3xl mr-2 sm:mr-3">📊</span>
+              <h3 className="text-xs sm:text-sm font-medium">Attendance</h3>
             </div>
-            <p className="text-4xl font-bold">{stats?.attendancePercentage || 0}%</p>
+            <p className="text-3xl sm:text-4xl font-bold">{stats?.attendancePercentage || 0}%</p>
           </div>
 
           {/* Total Classes */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex items-center mb-2">
-              <span className="text-3xl mr-3">📅</span>
-              <h3 className="text-sm font-medium text-gray-700">Working Days</h3>
+              <span className="text-2xl sm:text-3xl mr-2 sm:mr-3">📅</span>
+              <h3 className="text-xs sm:text-sm font-medium text-gray-700">Working Days</h3>
             </div>
-            <p className="text-4xl font-bold text-blue-600">{stats?.totalWorkingDays || 0}</p>
+            <p className="text-3xl sm:text-4xl font-bold text-blue-600">{stats?.totalWorkingDays || 0}</p>
           </div>
 
           {/* Present Days (incl. OD) */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex items-center mb-2">
-              <span className="text-3xl mr-3">✅</span>
-              <h3 className="text-sm font-medium text-gray-700">Present Days</h3>
+              <span className="text-2xl sm:text-3xl mr-2 sm:mr-3">✅</span>
+              <h3 className="text-xs sm:text-sm font-medium text-gray-700">Present Days</h3>
             </div>
-            <p className="text-4xl font-bold text-green-600">
+            <p className="text-3xl sm:text-4xl font-bold text-green-600">
               {(stats?.presentDays || 0) + (stats?.odDays || 0)}
             </p>
             <p className="text-xs text-gray-500 mt-1">(incl. {stats?.odDays || 0} OD)</p>
           </div>
 
           {/* OD Days */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex items-center mb-2">
-              <span className="text-3xl mr-3">🔄</span>
-              <h3 className="text-sm font-medium text-gray-700">OD Days</h3>
+              <span className="text-2xl sm:text-3xl mr-2 sm:mr-3">🔄</span>
+              <h3 className="text-xs sm:text-sm font-medium text-gray-700">OD Days</h3>
             </div>
-            <p className="text-4xl font-bold text-blue-600">{stats?.odDays || 0}</p>
+            <p className="text-3xl sm:text-4xl font-bold text-blue-600">{stats?.odDays || 0}</p>
           </div>
 
           {/* Absent Days */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
             <div className="flex items-center mb-2">
-              <span className="text-3xl mr-3">❌</span>
-              <h3 className="text-sm font-medium text-gray-700">Absent Days</h3>
+              <span className="text-2xl sm:text-3xl mr-2 sm:mr-3">❌</span>
+              <h3 className="text-xs sm:text-sm font-medium text-gray-700">Absent Days</h3>
             </div>
-            <p className="text-4xl font-bold text-red-600">{stats?.absentDays || 0}</p>
+            <p className="text-3xl sm:text-4xl font-bold text-red-600">{stats?.absentDays || 0}</p>
           </div>
         </div>
 
         {/* Attendance Records */}
         <div className="bg-white rounded-lg shadow-md">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center space-x-3">
-                <span className="text-3xl">📋</span>
-                <h2 className="text-xl font-semibold text-gray-900">Attendance Records</h2>
+          <div className="p-4 sm:p-6 border-b border-gray-200">
+            <div className="flex flex-col gap-4 sm:gap-5">
+              {/* Header */}
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <span className="text-2xl sm:text-3xl flex-shrink-0">📋</span>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Attendance Records</h2>
               </div>
 
               {/* Filter Buttons */}
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 overflow-x-auto scrollbar-hide pb-1 sm:pb-0">
                 <button
                   onClick={() => setFilterStatus('all')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                     filterStatus === 'all'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -249,9 +251,9 @@ const SemesterDetailPage = () => {
                 </button>
                 <button
                   onClick={() => setFilterStatus('present')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                     filterStatus === 'present'
-                      ? 'bg-green-600 text-white'
+                      ? 'bg-green-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -259,9 +261,9 @@ const SemesterDetailPage = () => {
                 </button>
                 <button
                   onClick={() => setFilterStatus('od')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                     filterStatus === 'od'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -269,9 +271,9 @@ const SemesterDetailPage = () => {
                 </button>
                 <button
                   onClick={() => setFilterStatus('absent')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                     filterStatus === 'absent'
-                      ? 'bg-red-600 text-white'
+                      ? 'bg-red-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -279,9 +281,9 @@ const SemesterDetailPage = () => {
                 </button>
                 <button
                   onClick={() => setFilterStatus('holiday')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                     filterStatus === 'holiday'
-                      ? 'bg-purple-600 text-white'
+                      ? 'bg-purple-600 text-white shadow-sm'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -291,21 +293,23 @@ const SemesterDetailPage = () => {
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {filteredAttendance.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <p>No records found for the selected filter</p>
+              <div className="text-center py-8 sm:py-12 text-gray-500">
+                <p className="text-sm sm:text-base">No records found for the selected filter</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3 sm:space-y-4 max-h-[600px] overflow-y-auto">
                 {filteredAttendance.map((record, idx) => (
                   <div
                     key={`${record.date}-${idx}`}
-                    className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
+                    className="p-4 sm:p-5 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition-all duration-200"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                      {/* Left Content */}
+                      <div className="flex-1 min-w-0 space-y-2">
+                        {/* Date */}
+                        <p className="font-semibold text-sm sm:text-base text-gray-900 leading-tight">
                           {new Date(record.date).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'long',
@@ -314,44 +318,50 @@ const SemesterDetailPage = () => {
                           })}
                         </p>
                         
+                        {/* Holiday Reason */}
                         {record.holidayReason && (
-                          <div className="mt-2 p-2 bg-purple-50 rounded border-l-4 border-purple-500">
-                            <p className="text-sm text-gray-700">
-                              <span className="font-medium">Holiday:</span> {record.holidayReason}
+                          <div className="mt-2.5 p-2.5 sm:p-3 bg-purple-50 rounded-md border-l-4 border-purple-500">
+                            <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+                              <span className="font-medium text-purple-700">Holiday:</span> {record.holidayReason}
                             </p>
                           </div>
                         )}
 
+                        {/* Student Reason */}
                         {record.reason && (
-                          <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-500">
-                            <p className="text-sm text-gray-700">
-                              <span className="font-medium">Your Reason:</span> {record.reason}
+                          <div className="mt-2.5 p-2.5 sm:p-3 bg-blue-50 rounded-md border-l-4 border-blue-500">
+                            <p className="text-xs sm:text-sm text-gray-700 leading-relaxed break-words">
+                              <span className="font-medium text-blue-700">Your Reason:</span> {record.reason}
                             </p>
-                            {record.reviewStatus === 'Pending' && (
-                              <span className="inline-block mt-1 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                                ⏳ Pending Review
-                              </span>
-                            )}
-                            {record.reviewStatus === 'Reviewed' && (
-                              <span className="inline-block mt-1 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                ✅ Reviewed
-                              </span>
-                            )}
+                            <div className="mt-2 flex items-center gap-2">
+                              {record.reviewStatus === 'Pending' && (
+                                <span className="inline-flex items-center text-xs bg-yellow-100 text-yellow-800 px-2.5 py-1 rounded-md font-medium">
+                                  ⏳ Pending Review
+                                </span>
+                              )}
+                              {record.reviewStatus === 'Reviewed' && (
+                                <span className="inline-flex items-center text-xs bg-green-100 text-green-800 px-2.5 py-1 rounded-md font-medium">
+                                  ✅ Reviewed
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )}
 
+                        {/* Faculty Note */}
                         {record.facultyNote && (
-                          <div className="mt-2 p-2 bg-purple-50 rounded border-l-4 border-purple-500">
-                            <p className="text-sm text-gray-700">
-                              <span className="font-medium">Faculty Note:</span> {record.facultyNote}
+                          <div className="mt-2.5 p-2.5 sm:p-3 bg-purple-50 rounded-md border-l-4 border-purple-500">
+                            <p className="text-xs sm:text-sm text-gray-700 leading-relaxed break-words">
+                              <span className="font-medium text-purple-700">Faculty Note:</span> {record.facultyNote}
                             </p>
                           </div>
                         )}
                       </div>
 
-                      <div className="flex items-center space-x-3 ml-4">
+                      {/* Right Content - Status Badge and Actions */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2.5 sm:gap-3 sm:ml-4 flex-shrink-0">
                         <span
-                          className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap ${
+                          className={`inline-flex items-center justify-center px-3.5 sm:px-4 py-2 rounded-lg font-semibold text-xs sm:text-sm whitespace-nowrap ${
                             record.status === 'Present'
                               ? 'bg-green-100 text-green-700'
                               : record.status === 'Absent'
@@ -372,7 +382,7 @@ const SemesterDetailPage = () => {
                         {record.status === 'Absent' && !record.reason && (
                           <button
                             onClick={() => handleAbsenceReasonSubmit(record)}
-                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap"
+                            className="w-full sm:w-auto px-3.5 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-xs sm:text-sm whitespace-nowrap font-medium shadow-sm hover:shadow"
                           >
                             📝 Add Reason
                           </button>
