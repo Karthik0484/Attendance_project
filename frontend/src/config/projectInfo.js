@@ -25,7 +25,7 @@ export const projectInfo = {
       id: 1,
       name: "Karthik.K",
       role: "Full Stack Developer / Team Lead",
-      avatar: "/src/assets/team/karthik.jpg", // 📸 UPDATE: "/src/assets/team/karthik.jpg" or emoji
+      avatar: "/team/karthik.jpg", // 📸 Images moved to public/team folder
       email: "karthikofficial0484@gmail.com", // Optional
       github: "", // Optional
       linkedin: "" // Optional
@@ -34,7 +34,7 @@ export const projectInfo = {
       id: 2,
       name: "Dushyanth.C",
       role: "Backend Developer / Team Lead",
-      avatar: "/src/assets/team/dushyanth.jpg", // 📸 UPDATE: "/src/assets/team/dushyanth.jpg" or emoji
+      avatar: "/team/dushyanth.jpg", // 📸 Images moved to public/team folder
       email: "dushyanth@example.com",
       github: "",
       linkedin: ""
@@ -43,7 +43,7 @@ export const projectInfo = {
       id: 3,
       name: "Balaji.S",
       role: "Frontend Developer",
-      avatar: "/src/assets/team/balaji.jpg", // 📸 UPDATE: "/src/assets/team/balaji.jpg" or emoji
+      avatar: "/team/balaji.jpg", // 📸 Images moved to public/team folder
       email: "balaji@example.com",
       github: "",
       linkedin: ""
@@ -52,7 +52,7 @@ export const projectInfo = {
       id: 4,
       name: "Aravind.K",
       role: "Database Engineer",
-      avatar: "/src/assets/team/aravind.jpg", // 📸 UPDATE: "/src/assets/team/aravind.jpg" or emoji
+      avatar: "/team/aravind.jpg", // 📸 Images moved to public/team folder
       email: "aravind@example.com",
       github: "",
       linkedin: ""
@@ -61,7 +61,7 @@ export const projectInfo = {
       id: 5,
       name: "Kishore.S",
       role: "UI/UX Designer",
-      avatar: "/src/assets/team/kishore.jpg", // 📸 UPDATE: "/src/assets/team/kishore.jpg" or emoji
+      avatar: "/team/kishore.jpg", // 📸 Images moved to public/team folder
       email: "kishore@example.com",
       github: "",
       linkedin: ""
