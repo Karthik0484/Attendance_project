@@ -6,6 +6,7 @@ import DepartmentSettings from '../models/DepartmentSettings.js';
 import DepartmentHODMapping from '../models/DepartmentHODMapping.js';
 import Notification from '../models/Notification.js';
 import bcrypt from 'bcryptjs';
+import DEPARTMENTS from '../config/departments.js';
 
 const router = express.Router();
 
@@ -25,6 +26,25 @@ const allowAdminOrPrincipal = (req, res, next) => {
 router.use(authenticate);
 router.use(allowAdminOrPrincipal);
 
+// @desc    Get list of all available departments
+// @route   GET /api/hod-management/departments
+// @access  Admin or Principal
+router.get('/departments', async (req, res) => {
+  try {
+    res.status(200).json({
+      success: true,
+      data: DEPARTMENTS
+    });
+  } catch (error) {
+    console.error('Error fetching departments:', error);
+    res.status(500).json({
+      success: false,
+      msg: 'Error fetching departments list',
+      error: error.message
+    });
+  }
+});
+
 // @desc    Get all departments with their HODs (Active and Inactive)
 // @route   GET /api/hod-management/hods
 // @access  Admin or Principal
@@ -33,7 +53,7 @@ router.get('/hods', async (req, res) => {
     const { status, search, sortBy } = req.query;
     const userRole = req.user.role;
 
-    const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+    const departments = DEPARTMENTS;
     
     const departmentsData = await Promise.all(departments.map(async (dept) => {
       // Get department settings
@@ -233,7 +253,7 @@ router.post('/hods', [
   body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Please enter a valid email'),
   body('password').optional({ values: 'falsy' }).isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('department').isIn(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']).withMessage('Invalid department'),
+  body('department').isIn(DEPARTMENTS).withMessage(`Department must be one of: ${DEPARTMENTS.join(', ')}`),
   body('mobile').optional({ values: 'falsy' }).matches(/^\d{10}$/).withMessage('Mobile must be exactly 10 digits')
 ], async (req, res) => {
   try {
@@ -818,7 +838,7 @@ router.get('/hods/export', async (req, res) => {
     const { status = 'all' } = req.query;
     
     // Get all HOD data
-    const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+    const departments = DEPARTMENTS;
     
     const exportData = [];
     

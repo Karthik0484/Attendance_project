@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import DEPARTMENTS from '../config/departments.js';
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -36,18 +37,18 @@ const userSchema = new mongoose.Schema({
     },
     trim: true,
     enum: {
-      values: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
-      message: 'Department must be one of: CSE, IT, ECE, EEE, Civil, Mechanical, CSBS, AIDS'
+      values: DEPARTMENTS,
+      message: `Department must be one of: ${DEPARTMENTS.join(', ')}`
     },
     validate: {
       validator: function(v) {
-        // Only validate enum if department is required (i.e., for hod, faculty, student)
+        // Only validate if department is required (i.e., for hod, faculty, student)
         if (['hod', 'faculty', 'student'].includes(this.role)) {
-          return ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'].includes(v);
+          return DEPARTMENTS.includes(v);
         }
         return true;
       },
-      message: 'Department must be one of: CSE, IT, ECE, EEE, Civil, Mechanical, CSBS, AIDS'
+      message: `Department must be one of: ${DEPARTMENTS.join(', ')}`
     }
   },
   class: {

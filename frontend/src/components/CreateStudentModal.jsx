@@ -22,8 +22,30 @@ const CreateStudentModal = ({ isOpen, onClose, onStudentCreated, assignedClass }
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [departments, setDepartments] = useState(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']);
 
-  const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+  // Fetch departments list from API when modal opens
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await apiFetch({
+          url: '/api/hod-management/departments',
+          method: 'GET'
+        });
+
+        if (response.data.success) {
+          setDepartments(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        // Keep default list if API fails
+      }
+    };
+
+    if (isOpen) {
+      fetchDepartments();
+    }
+  }, [isOpen]);
   
   // Dynamic semester mapping based on year
   const semesterOptions = {

@@ -11,6 +11,7 @@ import Faculty from '../models/Faculty.js';
 import Attendance from '../models/Attendance.js';
 import Holiday from '../models/Holiday.js';
 import bcrypt from 'bcryptjs';
+import DEPARTMENTS from '../config/departments.js';
 
 const router = express.Router();
 
@@ -24,7 +25,7 @@ router.use(authorize('principal'));
 router.get('/hods', async (req, res) => {
   try {
     const { status = 'all', search = '', sortBy = 'department' } = req.query;
-    const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+    const departments = DEPARTMENTS;
     
     const departmentsWithHODs = await Promise.all(
       departments.map(async (dept) => {
@@ -279,7 +280,7 @@ router.post('/hods', [
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').optional({ values: 'falsy' }).isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('department').isIn(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']).withMessage('Valid department is required'),
+  body('department').isIn(DEPARTMENTS).withMessage(`Department must be one of: ${DEPARTMENTS.join(', ')}`),
   body('mobile').optional({ values: 'falsy' }).matches(/^\d{10}$/).withMessage('Mobile must be exactly 10 digits')
 ], async (req, res) => {
   try {
@@ -425,10 +426,10 @@ router.put('/hods/:departmentId/replace', [
     const principalId = req.user._id;
 
     // Validate department
-    if (!['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'].includes(departmentId)) {
+    if (!DEPARTMENTS.includes(departmentId)) {
       return res.status(400).json({
         success: false,
-        msg: 'Invalid department'
+        msg: `Invalid department. Must be one of: ${DEPARTMENTS.join(', ')}`
       });
     }
 
@@ -628,10 +629,10 @@ router.put('/hods/:departmentId/deactivate', async (req, res) => {
     const principalId = req.user._id;
 
     // Validate department
-    if (!['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'].includes(departmentId)) {
+    if (!DEPARTMENTS.includes(departmentId)) {
       return res.status(400).json({
         success: false,
-        msg: 'Invalid department'
+        msg: `Invalid department. Must be one of: ${DEPARTMENTS.join(', ')}`
       });
     }
 
@@ -918,10 +919,10 @@ router.get('/hods/:departmentId/history', async (req, res) => {
     const { departmentId } = req.params;
 
     // Validate department
-    if (!['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'].includes(departmentId)) {
+    if (!DEPARTMENTS.includes(departmentId)) {
       return res.status(400).json({
         success: false,
-        msg: 'Invalid department'
+        msg: `Invalid department. Must be one of: ${DEPARTMENTS.join(', ')}`
       });
     }
 
@@ -966,7 +967,7 @@ router.get('/hods/export', async (req, res) => {
     const { status = 'all' } = req.query;
     
     // Get all HOD data
-    const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+    const departments = DEPARTMENTS;
     
     const exportData = [];
     

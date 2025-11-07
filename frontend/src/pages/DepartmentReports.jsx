@@ -13,10 +13,27 @@ const DepartmentReports = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [expandedSections, setExpandedSections] = useState({});
+  const [departments, setDepartments] = useState(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']);
 
-  const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+  // Fetch departments list from API
+  const fetchDepartments = async () => {
+    try {
+      const response = await apiFetch({
+        url: '/api/hod-management/departments',
+        method: 'GET'
+      });
+
+      if (response.data.success) {
+        setDepartments(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      // Keep default list if API fails
+    }
+  };
 
   useEffect(() => {
+    fetchDepartments();
     fetchReports();
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchReports, 30000);

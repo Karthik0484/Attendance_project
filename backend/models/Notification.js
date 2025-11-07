@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import DEPARTMENTS from '../config/departments.js';
 
 const notificationSchema = new mongoose.Schema({
   // Support both old (facultyId) and new (userId) notification systems
@@ -31,7 +32,7 @@ const notificationSchema = new mongoose.Schema({
   },
   department: {
     type: String,
-    enum: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
+    enum: DEPARTMENTS,
     required: false
   },
   classRef: {

@@ -31,8 +31,30 @@ const CreateUserModal = ({ isOpen, onClose, onUserCreated, userRole = 'admin' })
   const [availableBatches, setAvailableBatches] = useState([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [advisorAvailability, setAdvisorAvailability] = useState(null);
+  const [departments, setDepartments] = useState(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']);
 
-  const departments = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
+  // Fetch departments list from API when modal opens
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await apiFetch({
+          url: '/api/hod-management/departments',
+          method: 'GET'
+        });
+
+        if (response.data.success) {
+          setDepartments(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        // Keep default list if API fails
+      }
+    };
+
+    if (isOpen) {
+      fetchDepartments();
+    }
+  }, [isOpen]);
   const positions = ['Assistant Professor', 'Associate Professor', 'Professor'];
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   const sections = ['A', 'B', 'C'];

@@ -31,8 +31,27 @@ const HODManagement = () => {
     department: ''
   });
   const [submitting, setSubmitting] = useState(false);
+  const [departmentsList, setDepartmentsList] = useState(['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']);
+
+  // Fetch departments list from API
+  const fetchDepartments = async () => {
+    try {
+      const response = await apiFetch({
+        url: '/api/hod-management/departments',
+        method: 'GET'
+      });
+
+      if (response.data.success) {
+        setDepartmentsList(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      // Keep default list if API fails
+    }
+  };
 
   useEffect(() => {
+    fetchDepartments();
     fetchHODs();
     
     // Polling for real-time sync (every 30 seconds)
@@ -326,8 +345,6 @@ const HODManagement = () => {
     }
     return <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">🟡 Pending</span>;
   };
-
-  const departmentsList = ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'];
 
   // Filter departments based on active tab and status filter
   const displayDepartments = React.useMemo(() => {

@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
+import DEPARTMENTS from '../config/departments.js';
 
 const departmentSettingsSchema = new mongoose.Schema({
   department: {
     type: String,
     required: true,
     unique: true,
-    enum: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']
+    enum: DEPARTMENTS
   },
   hodId: {
     type: mongoose.Schema.Types.ObjectId,

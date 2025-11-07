@@ -1,10 +1,11 @@
 import mongoose from 'mongoose';
+import DEPARTMENTS from '../config/departments.js';
 
 const departmentHODMappingSchema = new mongoose.Schema({
   departmentId: {
     type: String,
     required: true,
-    enum: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
+    enum: DEPARTMENTS,
     index: true
   },
   hodId: {

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import DEPARTMENTS from '../config/departments.js';
 
 const holidaySchema = new mongoose.Schema({
   holidayId: {
@@ -70,8 +71,8 @@ const holidaySchema = new mongoose.Schema({
     type: String,
     required: [true, 'Department is required'],
     enum: {
-      values: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
-      message: 'Department must be one of: CSE, IT, ECE, EEE, Civil, Mechanical, CSBS, AIDS'
+      values: DEPARTMENTS,
+      message: `Department must be one of: ${DEPARTMENTS.join(', ')}`
     },
     index: true
   },

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import DEPARTMENTS from '../config/departments.js';
 
 // Semester enrollment schema
 const semesterEnrollmentSchema = new mongoose.Schema({
@@ -44,8 +45,8 @@ const semesterEnrollmentSchema = new mongoose.Schema({
     required: [true, 'Department is required'],
     trim: true,
     enum: {
-      values: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
-      message: 'Department must be one of: CSE, IT, ECE, EEE, Civil, Mechanical, CSBS, AIDS'
+      values: DEPARTMENTS,
+      message: `Department must be one of: ${DEPARTMENTS.join(', ')}`
     }
   },
   batch: {
@@ -105,8 +106,8 @@ const studentSchema = new mongoose.Schema({
     required: [true, 'Department is required'],
     trim: true,
     enum: {
-      values: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS'],
-      message: 'Department must be one of: CSE, IT, ECE, EEE, Civil, Mechanical, CSBS, AIDS'
+      values: DEPARTMENTS,
+      message: `Department must be one of: ${DEPARTMENTS.join(', ')}`
     }
   },
   batchYear: {

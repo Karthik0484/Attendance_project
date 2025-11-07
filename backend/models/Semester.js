@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import DEPARTMENTS from '../config/departments.js';
 
 const semesterSchema = new mongoose.Schema({
   semesterNumber: {
@@ -21,7 +22,7 @@ const semesterSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    enum: ['CSE', 'IT', 'ECE', 'EEE', 'Civil', 'Mechanical', 'CSBS', 'AIDS']
+    enum: DEPARTMENTS
   },
   section: {
     type: String,
