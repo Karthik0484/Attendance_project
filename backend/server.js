@@ -22,6 +22,7 @@ import hodDashboardRoutes from './routes/hodDashboard.js';
 import principalRoutes from './routes/principal.js';
 import hodManagementRoutes from './routes/hodManagement.js';
 import departmentReportsRoutes from './routes/departmentReports.js';
+import approvalsRoutes from './routes/approvals.js';
 import config from './config/config.js';
 import Student from './models/Student.js';
 import Attendance from './models/Attendance.js';
@@ -146,6 +147,7 @@ app.use('/api/hod', hodDashboardRoutes);
 app.use('/api/principal', principalRoutes);
 app.use('/api/hod-management', hodManagementRoutes);
 app.use('/api/principal/department-reports', departmentReportsRoutes);
+app.use('/api', approvalsRoutes);
 console.log('✅ All routes registered successfully');
 
 // Health check route

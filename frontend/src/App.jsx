@@ -10,8 +10,10 @@ import HODDashboard from './pages/dashboards/HODDashboard';
 import RestrictedHODDashboard from './pages/dashboards/RestrictedHODDashboard';
 import HODManagement from './pages/HODManagement';
 import DepartmentReports from './pages/DepartmentReports';
+import PrincipalApprovals from './pages/PrincipalApprovals';
 import FacultyDashboard from './pages/dashboards/FacultyDashboard';
 import ClassAttendanceManagement from './pages/ClassAttendanceManagement';
+import ODRequestForm from './pages/ODRequestForm';
 import AttendanceManagement from './pages/AttendanceManagement';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
 import SemesterDetailPage from './pages/SemesterDetailPage';
@@ -78,6 +80,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['principal']}>
                   <DepartmentReports />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/principal/approvals" 
+              element={
+                <ProtectedRoute allowedRoles={['principal']}>
+                  <PrincipalApprovals />
                 </ProtectedRoute>
               } 
             />
@@ -158,6 +168,14 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute allowedRoles={['faculty']}>
                   <ClassAttendanceManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/faculty/od-request" 
+              element={
+                <ProtectedRoute allowedRoles={['faculty', 'hod']}>
+                  <ODRequestForm />
                 </ProtectedRoute>
               } 
             />

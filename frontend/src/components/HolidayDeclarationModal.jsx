@@ -83,6 +83,8 @@ const HolidayDeclarationModal = ({
       });
 
       if (response.data.status === 'success') {
+        // Show success message indicating approval is pending
+        alert(`Holiday request submitted successfully!\n\nRequest ID: ${response.data.data.requestId}\n\nYour holiday request is now pending Principal approval. You will be notified once it's approved.`);
         onSuccess(response.data.data);
         handleClose();
       } else {

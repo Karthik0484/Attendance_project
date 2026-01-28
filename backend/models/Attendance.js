@@ -33,6 +33,17 @@ const attendanceRecordSchema = new mongoose.Schema({
     required: true,
     default: 'present'
   },
+  // Flag to indicate OD is pending approval
+  pendingOD: {
+    type: Boolean,
+    default: false
+  },
+  // Reference to the approval request for this OD
+  odRequestId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ApprovalRequest',
+    default: null
+  },
   // Student-submitted reason for absence
   reason: {
     type: String,
@@ -119,7 +130,7 @@ const attendanceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'finalized', 'modified'],
+    enum: ['draft', 'finalized', 'modified', 'pending_od_approval'],
     default: 'finalized'
   },
   notes: {

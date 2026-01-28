@@ -622,6 +622,25 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
     }
   }, [todayAttendance]);
 
+  // Auto-refresh attendance data when there are pending ODs
+  useEffect(() => {
+    if (!attendanceExists || !classData?.classId) return;
+    
+    const pendingODCount = todayAttendance?.pendingODCount || 0;
+    
+    // Only auto-refresh if there are pending ODs
+    if (pendingODCount > 0) {
+      console.log('🔄 Auto-refreshing attendance data due to pending ODs:', pendingODCount);
+      
+      // Refresh every 10 seconds when there are pending ODs
+      const refreshInterval = setInterval(() => {
+        checkAttendanceExists();
+      }, 10000); // 10 seconds
+      
+      return () => clearInterval(refreshInterval);
+    }
+  }, [attendanceExists, todayAttendance?.pendingODCount, classData?.classId]);
+
   const handleAttendanceChange = (e) => {
     const { name, value } = e.target;
     setAttendanceForm(prev => ({ ...prev, [name]: value }));
@@ -640,7 +659,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
     
     if (!todayAttendance) {
       console.log('📋 No attendance data for roll number:', rollNumber);
-      return 'Not Marked';
+      return { status: 'Not Marked', hasPendingOD: false };
     }
     
     // Ensure we have arrays to work with
@@ -650,6 +669,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
     
     // Also check records array if present (from API response)
     let statusFromRecords = null;
+    let hasPendingOD = false;
     if (todayAttendance.records && Array.isArray(todayAttendance.records)) {
       const record = todayAttendance.records.find(r => {
         const rollNum = r.rollNumber || (r.studentId && (r.studentId.rollNumber || r.studentId.rollNo || r.studentId.regNo));
@@ -657,6 +677,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
       });
       if (record) {
         statusFromRecords = record.status;
+        hasPendingOD = record.pendingOD === true;
       }
     }
     
@@ -668,6 +689,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
       isPresent,
       isAbsent,
       isOD,
+      hasPendingOD,
       presentStudents: presentStudents,
       absentStudents: absentStudents,
       odStudents: odStudents,
@@ -675,10 +697,10 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
       fullAttendanceData: todayAttendance
     });
     
-    if (isPresent && !isOD) return 'Present';
-    if (isOD) return 'OD';
-    if (isAbsent) return 'Absent';
-    return 'Not Marked';
+    if (isPresent && !isOD) return { status: 'Present', hasPendingOD: false };
+    if (isOD) return { status: 'OD', hasPendingOD };
+    if (isAbsent) return { status: 'Absent', hasPendingOD: false };
+    return { status: 'Not Marked', hasPendingOD: false };
   };
 
   // Function to check if attendance already exists and fetch attendance data
@@ -715,6 +737,9 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             .filter(record => record.status === 'od')
             .map(record => record.rollNumber);
           
+          // Count pending ODs
+          const pendingODCount = attendance.records?.filter(r => r.pendingOD === true).length || 0;
+          
           const attendanceData = {
             presentStudents: presentStudents,
             absentStudents: absentStudents,
@@ -723,6 +748,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             totalPresent: attendance.totalPresent || 0,
             totalAbsent: attendance.totalAbsent || 0,
             totalOD: attendance.totalOD || 0,
+            pendingODCount: pendingODCount,
             date: attendance.date,
             status: attendance.status,
             records: attendance.records // Keep records for status checking
@@ -755,6 +781,9 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
         
         if (attendance) {
           // Transform attendance data to match frontend expectations
+          // Count pending ODs from records
+          const pendingODCount = attendance.records?.filter(r => r.pendingOD === true).length || 0;
+          
           const attendanceData = {
             presentStudents: attendance.presentStudents || [],
             absentStudents: attendance.absentStudents || [],
@@ -763,6 +792,7 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             totalPresent: attendance.totalPresent || 0,
             totalAbsent: attendance.totalAbsent || 0,
             totalOD: attendance.totalOD || 0,
+            pendingODCount: pendingODCount,
             date: attendance.date,
             status: attendance.status,
             records: attendance.records || [] // Keep records if available
@@ -902,41 +932,23 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
       });
 
       if (response.data.success) {
-        onToast('✓ Attendance marked successfully!', 'success');
+        // Check if there are pending OD approvals
+        const pendingODCount = response.data.data?.approvalRequests?.length || 0;
+        const hasPendingOD = pendingODCount > 0;
+        
+        if (hasPendingOD) {
+          onToast(`✅ Attendance marked successfully! ${pendingODCount} OD request(s) sent for Principal approval.`, 'success');
+        } else {
+          onToast('✅ Attendance marked successfully!', 'success');
+        }
+        
         setAttendanceForm(prev => ({ ...prev, absentees: '', odStudents: '' }));
         
-        // Create attendance data from the form submission
-        const presentStudents = (students || []).filter(student => {
-          const rollNum = student.rollNumber;
-          return !absentRollNumbers.includes(rollNum) && !odRollNumbers.includes(rollNum);
-        }).map(student => student.rollNumber);
-        
-        const attendanceData = {
-          presentStudents: presentStudents,
-          absentStudents: absentRollNumbers,
-          odStudents: odRollNumbers,
-          totalStudents: (students || []).length,
-          totalPresent: presentStudents.length,
-          totalAbsent: absentRollNumbers.length,
-          totalOD: odRollNumbers.length,
-          date: today,
-          status: 'finalized'
-        };
-        
-        // Set both attendance data and existence flag immediately
-        setTodayAttendance(attendanceData);
-        setAttendanceExists(true);
-        setForceUpdate(prev => prev + 1); // Force re-render
-        
-        console.log('📋 Attendance marked successfully!');
-        console.log('📋 Set attendanceExists to true, button should be disabled');
-        console.log('📋 Created attendance data from form:', attendanceData);
-        console.log('📋 Present students:', presentStudents);
-        console.log('📋 Absent students:', absentRollNumbers);
-        
-        // Refresh students list and attendance data
-        await refreshStudentsList();
+        // Refresh attendance data from API to get accurate records with pendingOD flags
         await checkAttendanceExists();
+        
+        // Refresh students list
+        await refreshStudentsList();
       } else {
         onToast(response.data.message || 'Failed to mark attendance', 'error');
       }
@@ -1062,8 +1074,17 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 <p className="text-xl sm:text-2xl font-bold text-red-600">{absentCount}</p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
-                <p className="text-xs sm:text-sm text-blue-700 font-medium mb-1">OD</p>
-                <p className="text-xl sm:text-2xl font-bold text-blue-600">{odCount}</p>
+                <p className="text-xs sm:text-sm text-blue-700 font-medium mb-1">
+                OD {todayAttendance?.pendingODCount > 0 && (
+                  <span className="text-yellow-600 text-xs">({todayAttendance.pendingODCount} pending)</span>
+                )}
+              </p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600">
+                  {todayAttendance?.pendingODCount > 0 ? `${odCount - todayAttendance.pendingODCount}` : odCount}
+                  {todayAttendance?.pendingODCount > 0 && (
+                    <span className="text-yellow-600 text-xs ml-1">+{todayAttendance.pendingODCount}</span>
+                  )}
+                </p>
               </div>
             </div>
 
@@ -1082,9 +1103,21 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-              On Duty (OD) Students (Enter roll numbers separated by commas)
-              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                  On Duty (OD) Students (Enter roll numbers separated by commas)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/faculty/od-request')}
+                  className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-xs sm:text-sm shadow-sm hover:shadow-md whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Request Future OD</span>
+                </button>
+              </div>
               <textarea
                 name="odStudents"
                 value={attendanceForm.odStudents}
@@ -1093,6 +1126,9 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                 rows={3}
               className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                For same-day OD, enter roll numbers above. For future dates, use "Request Future OD" button.
+              </p>
             </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">
@@ -1181,16 +1217,22 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
                       {(() => {
                         const rollNum = student.rollNumber || student.regNo || student.rollNo;
-                        const status = getStudentAttendanceStatus(rollNum);
+                        const statusInfo = getStudentAttendanceStatus(rollNum);
+                        const status = statusInfo.status;
+                        const hasPendingOD = statusInfo.hasPendingOD;
                         const statusColors = {
                           'Present': 'bg-green-100 text-green-800',
                           'Absent': 'bg-red-100 text-red-800',
                           'OD': 'bg-blue-100 text-blue-800',
+                          'OD (Pending Approval)': 'bg-yellow-100 text-yellow-800',
                           'On Duty': 'bg-blue-100 text-blue-800',
                           'Not Marked': 'bg-gray-100 text-gray-800'
                         };
+                        
                         // Normalize status display (handle both 'OD' and 'On Duty')
-                        const displayStatus = status === 'od' || status === 'OD' ? 'OD' : status;
+                        const displayStatus = hasPendingOD 
+                          ? 'OD (Pending Approval)' 
+                          : (status === 'od' || status === 'OD' ? 'OD' : status);
                         return (
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[displayStatus] || statusColors['Not Marked']}`}>
                             {displayStatus}
@@ -1208,15 +1250,20 @@ const MarkAttendanceTab = ({ classData, students, onToast, onStudentsUpdate, nav
         <div className="md:hidden space-y-3">
           {(students || []).map((student) => {
             const rollNum = student.rollNumber || student.regNo || student.rollNo;
-            const status = getStudentAttendanceStatus(rollNum);
+            const statusInfo = getStudentAttendanceStatus(rollNum);
+            const status = statusInfo.status;
+            const hasPendingOD = statusInfo.hasPendingOD;
             const statusColors = {
               'Present': 'bg-green-100 text-green-800 border-green-200',
               'Absent': 'bg-red-100 text-red-800 border-red-200',
               'OD': 'bg-blue-100 text-blue-800 border-blue-200',
+              'OD (Pending Approval)': 'bg-yellow-100 text-yellow-800 border-yellow-200',
               'On Duty': 'bg-blue-100 text-blue-800 border-blue-200',
               'Not Marked': 'bg-gray-100 text-gray-800 border-gray-200'
             };
-            const displayStatus = status === 'od' || status === 'OD' ? 'OD' : status;
+            const displayStatus = hasPendingOD 
+              ? 'OD (Pending Approval)' 
+              : (status === 'od' || status === 'OD' ? 'OD' : status);
             
             return (
               <div key={student._id || student.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
@@ -1412,7 +1459,15 @@ const EditAttendanceTab = ({ classData, students, onToast }) => {
       });
 
       if (response.data.success) {
-        onToast('✅ Attendance updated successfully for today!', 'success');
+        // Check if there are pending OD approvals
+        const pendingODCount = response.data.data?.approvalRequests?.length || 0;
+        const hasPendingOD = pendingODCount > 0;
+        
+        if (hasPendingOD) {
+          onToast(`✅ Attendance updated successfully! ${pendingODCount} OD request(s) sent for Principal approval.`, 'success');
+        } else {
+          onToast('✅ Attendance updated successfully for today!', 'success');
+        }
         
         // Update local state with new data
         const updatedAttendance = response.data.data.attendance;
@@ -2992,7 +3047,11 @@ const AttendanceHistoryTab = ({ classData, students, onToast }) => {
                               {record.remarks && record.remarks !== '-' ? (
                                 <div>
                                   <p className="text-gray-900">{record.remarks}</p>
-                                  {record.reviewStatus && (
+                                  {/* Only show reviewStatus if it's not "Not Applicable" and status is not "OD" */}
+                                  {record.reviewStatus && 
+                                   record.reviewStatus !== 'Not Applicable' && 
+                                   record.status !== 'OD' && 
+                                   record.status !== 'od' && (
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1 ${
                                       record.reviewStatus === 'Reviewed' 
                                         ? 'bg-green-100 text-green-800' 

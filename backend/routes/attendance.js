@@ -10,9 +10,17 @@ import Attendance from '../models/Attendance.js';
 import ClassAttendance from '../models/ClassAttendance.js';
 import Student from '../models/Student.js';
 import Faculty from '../models/Faculty.js';
+import ApprovalRequest from '../models/ApprovalRequest.js';
 import { getHolidayCountForAnalytics } from '../services/holidayService.js';
 
 const router = express.Router();
+
+// Helper function to generate unique requestId for ApprovalRequest
+async function generateRequestId(type) {
+  const prefix = type.substring(0, 3).toUpperCase();
+  const count = await ApprovalRequest.countDocuments({ type: type });
+  return `${prefix}-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;
+}
 
 // @desc    Get attendance record for a specific class and date
 // @route   GET /api/attendance/:classId/:date
@@ -213,7 +221,7 @@ router.put('/:classId/:date', authenticate, facultyAndAbove, [
       };
     });
 
-    // Update attendance records
+    // Check for new OD records that need approval
     const updatedRecords = records.map(record => ({
       studentId: record.studentId,
       rollNumber: studentMap[record.studentId].rollNumber,
@@ -222,13 +230,82 @@ router.put('/:classId/:date', authenticate, facultyAndAbove, [
       status: record.status
     }));
 
+    // Find records that are being changed to OD
+    const newODRecords = updatedRecords.filter(record => {
+      const existingRecord = existingAttendance.records.find(
+        r => r.studentId.toString() === record.studentId.toString()
+      );
+      return record.status === 'od' && (!existingRecord || existingRecord.status !== 'od');
+    });
+
+    // Create approval requests for new OD records
+    const approvalRequests = [];
+    if (newODRecords.length > 0) {
+      for (const odRecord of newODRecords) {
+        const requestId = await generateRequestId('OD_REQUEST');
+        const approvalRequest = new ApprovalRequest({
+          requestId: requestId,
+          type: 'OD_REQUEST',
+          requestedBy: facultyId,
+          requestedByRole: 'faculty',
+          details: {
+            studentId: odRecord.studentId,
+            studentName: odRecord.name,
+            studentRollNumber: odRecord.rollNumber,
+            date: date,
+            classId: classId,
+            reason: `OD marked during attendance update for ${odRecord.name} (${odRecord.rollNumber})`,
+            department: faculty.department
+          },
+          priority: 'medium'
+        });
+        await approvalRequest.save();
+        approvalRequests.push(approvalRequest);
+      }
+    }
+
+    // Mark new OD records as pending approval (keep previous status temporarily)
+    const finalRecords = updatedRecords.map(record => {
+      if (record.status === 'od') {
+        const isNewOD = newODRecords.some(od => od.studentId.toString() === record.studentId.toString());
+        if (isNewOD) {
+          // Keep previous status temporarily, will be updated to OD after approval
+          const existingRecord = existingAttendance.records.find(
+            r => r.studentId.toString() === record.studentId.toString()
+          );
+          const previousStatus = existingRecord?.status || 'absent';
+          
+          return {
+            ...record,
+            status: previousStatus, // Keep previous status until approved
+            pendingOD: true,
+            odRequestId: approvalRequests.find(req => req.details.studentId.toString() === record.studentId.toString())?._id
+          };
+        }
+      }
+      return record;
+    });
+
+    // Recalculate totals
+    const totalPresent = finalRecords.filter(r => r.status === 'present').length;
+    const totalAbsent = finalRecords.filter(r => r.status === 'absent').length;
+    const totalOD = finalRecords.filter(r => r.status === 'od').length;
+
     // Update the attendance record
-    existingAttendance.records = updatedRecords;
-    existingAttendance.status = 'modified';
+    existingAttendance.records = finalRecords;
+    existingAttendance.totalPresent = totalPresent;
+    existingAttendance.totalAbsent = totalAbsent;
+    existingAttendance.totalOD = totalOD;
+    existingAttendance.status = newODRecords.length > 0 ? 'pending_od_approval' : 'modified';
     existingAttendance.notes = notes || existingAttendance.notes;
     existingAttendance.updatedBy = facultyId;
 
     await existingAttendance.save();
+
+    // Response message
+    const message = newODRecords.length > 0
+      ? `Attendance updated successfully. ${newODRecords.length} OD request(s) sent for Principal approval.`
+      : 'Attendance updated successfully';
 
     console.log('✅ Attendance record updated successfully:', {
       id: existingAttendance._id,
@@ -239,15 +316,23 @@ router.put('/:classId/:date', authenticate, facultyAndAbove, [
 
     res.json({
       success: true,
-      message: 'Attendance updated successfully',
+      message: message,
       data: {
         attendance: existingAttendance,
         summary: {
           totalStudents: existingAttendance.totalStudents,
           totalPresent: existingAttendance.totalPresent,
           totalAbsent: existingAttendance.totalAbsent,
+          totalOD: totalOD,
+          pendingODApprovals: newODRecords.length,
           attendancePercentage: existingAttendance.attendancePercentage
-        }
+        },
+        approvalRequests: approvalRequests.map(req => ({
+          id: req._id,
+          requestId: req.requestId,
+          studentId: req.details.studentId,
+          status: req.status
+        }))
       }
     });
 
@@ -365,19 +450,68 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
       status: record.status
     }));
 
+    // Check if any records have OD status - these need approval
+    const odRecords = attendanceRecords.filter(record => record.status === 'od');
+    const nonODRecords = attendanceRecords.filter(record => record.status !== 'od');
+
     // Calculate totals
     const totalStudents = attendanceRecords.length;
     const totalPresent = attendanceRecords.filter(record => record.status === 'present').length;
     const totalAbsent = attendanceRecords.filter(record => record.status === 'absent').length;
-    const totalOD = attendanceRecords.filter(record => record.status === 'od').length;
+    const totalOD = odRecords.length;
 
     console.log('📊 Calculated totals:', {
       totalStudents,
       totalPresent,
       totalAbsent,
       totalOD,
-      recordsCount: attendanceRecords.length
+      recordsCount: attendanceRecords.length,
+      odRecordsCount: odRecords.length
     });
+
+    // If there are OD records, create approval requests for each
+    const approvalRequests = [];
+    if (odRecords.length > 0) {
+      for (const odRecord of odRecords) {
+        const requestId = await generateRequestId('OD_REQUEST');
+        const approvalRequest = new ApprovalRequest({
+          requestId: requestId,
+          type: 'OD_REQUEST',
+          requestedBy: facultyId,
+          requestedByRole: 'faculty',
+          details: {
+            studentId: odRecord.studentId,
+            studentName: odRecord.name,
+            studentRollNumber: odRecord.rollNumber,
+            date: date,
+            classId: classId,
+            reason: `OD marked during attendance for ${odRecord.name} (${odRecord.rollNumber})`,
+            department: faculty.department
+          },
+          priority: 'medium'
+        });
+        await approvalRequest.save();
+        approvalRequests.push(approvalRequest);
+      }
+    }
+
+    // Create attendance records - mark OD records as 'absent' temporarily (will be updated after approval)
+    const finalRecords = attendanceRecords.map(record => {
+      if (record.status === 'od') {
+        // Mark as absent temporarily, will be updated to OD after approval
+        return {
+          ...record,
+          status: 'absent',
+          pendingOD: true, // Flag to indicate this needs OD approval
+          odRequestId: approvalRequests.find(req => req.details.studentId.toString() === record.studentId.toString())?._id
+        };
+      }
+      return record;
+    });
+
+    // Recalculate totals with temporary status
+    const finalTotalPresent = finalRecords.filter(record => record.status === 'present').length;
+    const finalTotalAbsent = finalRecords.filter(record => record.status === 'absent').length;
 
     // Create new attendance record
     const attendance = new Attendance({
@@ -385,12 +519,12 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
       date: date,
       facultyId: faculty._id,
       department: faculty.department,
-      records: attendanceRecords,
+      records: finalRecords,
       totalStudents: totalStudents,
-      totalPresent: totalPresent,
-      totalAbsent: totalAbsent,
-      totalOD: totalOD,
-      status: 'finalized',
+      totalPresent: finalTotalPresent,
+      totalAbsent: finalTotalAbsent,
+      totalOD: 0, // Will be updated after approval
+      status: odRecords.length > 0 ? 'pending_od_approval' : 'finalized',
       notes: notes || '',
       createdBy: facultyId,
       updatedBy: facultyId
@@ -402,7 +536,8 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
       totalStudents: attendance.totalStudents,
       totalPresent: attendance.totalPresent,
       totalAbsent: attendance.totalAbsent,
-      recordsLength: attendance.records.length
+      recordsLength: attendance.records.length,
+      pendingODCount: odRecords.length
     });
 
     await attendance.save();
@@ -411,21 +546,34 @@ router.post('/:classId/:date', authenticate, facultyAndAbove, [
       id: attendance._id,
       totalStudents: attendance.totalStudents,
       totalPresent: attendance.totalPresent,
-      totalAbsent: attendance.totalAbsent
+      totalAbsent: attendance.totalAbsent,
+      odApprovalRequests: approvalRequests.length
     });
+
+    // Response message based on whether OD approval is needed
+    const message = odRecords.length > 0
+      ? `Attendance created successfully. ${odRecords.length} OD request(s) sent for Principal approval.`
+      : 'Attendance created successfully';
 
     res.status(201).json({
       success: true,
-      message: 'Attendance created successfully',
+      message: message,
       data: {
         attendance: attendance,
         summary: {
           totalStudents: attendance.totalStudents,
           totalPresent: attendance.totalPresent,
           totalAbsent: attendance.totalAbsent,
-          totalOD: attendance.totalOD || 0,
+          totalOD: totalOD,
+          pendingODApprovals: odRecords.length,
           attendancePercentage: attendance.attendancePercentage
-        }
+        },
+        approvalRequests: approvalRequests.map(req => ({
+          id: req._id,
+          requestId: req.requestId,
+          studentId: req.details.studentId,
+          status: req.status
+        }))
       }
     });
 

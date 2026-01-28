@@ -5,10 +5,18 @@ import ClassAttendance from '../models/ClassAttendance.js';
 import Notification from '../models/Notification.js';
 import Faculty from '../models/Faculty.js';
 import ClassAssignment from '../models/ClassAssignment.js';
+import ApprovalRequest from '../models/ApprovalRequest.js';
 import { authenticate, facultyAndAbove } from '../middleware/auth.js';
 import { normalizeDateToString, isValidDateString } from '../utils/dateUtils.js';
 
 const router = express.Router();
+
+// Helper function to generate unique requestId for ApprovalRequest
+async function generateRequestId(type) {
+  const prefix = type.substring(0, 3).toUpperCase();
+  const count = await ApprovalRequest.countDocuments({ type: type });
+  return `${prefix}-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;
+}
 
 // All holiday routes require authentication
 router.use(authenticate);
@@ -138,38 +146,50 @@ router.post('/declare', facultyAndAbove, [
       });
     }
 
-    // Create new holiday
-    const holidayData = {
-      date: holidayDateString,
-      reason,
-      declaredBy: currentUser._id,
-      scope,
-      department: currentUser.department,
-      isActive: true
-    };
+    // Check if there's already a pending approval request for this holiday
+    const existingRequest = await ApprovalRequest.findOne({
+      type: 'FACULTY_HOLIDAY_REQUEST',
+      status: 'pending',
+      'details.date': holidayDateString,
+      'details.department': currentUser.department,
+      'details.scope': scope,
+      requestedBy: currentUser._id
+    });
 
-    if (scope === 'class') {
-      holidayData.batchYear = batchYear;
-      holidayData.section = section;
-      holidayData.semester = semester;
+    if (existingRequest) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Holiday request already pending approval for this date'
+      });
     }
 
-    const holiday = new Holiday(holidayData);
+    // Create approval request instead of directly creating holiday
+    const classDetails = scope === 'class' ? {
+      batchYear,
+      section,
+      semester
+    } : null;
 
-    try {
-      await holiday.save();
-    } catch (saveError) {
-      if (saveError.code === 11000) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Holiday already declared for this date'
-        });
-      }
-      throw saveError;
-    }
+    const requestId = await generateRequestId('FACULTY_HOLIDAY_REQUEST');
+    const approvalRequest = new ApprovalRequest({
+      requestId: requestId,
+      type: 'FACULTY_HOLIDAY_REQUEST',
+      requestedBy: currentUser._id,
+      requestedByRole: currentUser.role,
+      details: {
+        date: holidayDateString,
+        department: currentUser.department,
+        scope: scope,
+        reason: reason,
+        classDetails: classDetails
+      },
+      priority: scope === 'global' ? 'high' : 'medium'
+    });
 
-    console.log('🎉 Holiday declared:', {
-      holidayId: holiday.holidayId,
+    await approvalRequest.save();
+
+    console.log('🎉 Holiday request created (pending approval):', {
+      requestId: approvalRequest.requestId,
       date: holidayDateString,
       reason,
       scope,
@@ -177,102 +197,24 @@ router.post('/declare', facultyAndAbove, [
       section: scope === 'class' ? section : 'N/A',
       semester: scope === 'class' ? semester : 'N/A',
       department: currentUser.department,
-      declaredBy: currentUser.name
+      requestedBy: currentUser.name
     });
-
-    // Create notifications for faculty (asynchronously, don't wait)
-    (async () => {
-      try {
-        const facultyList = [];
-        
-        if (scope === 'class') {
-          // Find faculty assigned to this specific class
-          // Note: classId format may vary, try multiple formats
-          const classIdFormats = [
-            `${batchYear}_${semester}_${section}`,
-            `${batchYear}_Sem ${semester}_${section}`,
-            `${batchYear}_Sem${semester}_${section}`
-          ];
-          
-          for (const classIdFormat of classIdFormats) {
-            const assignments = await ClassAssignment.find({
-              $or: [
-                { classId: classIdFormat },
-                { batch: batchYear, section, semester }
-              ],
-              department: currentUser.department,
-              status: 'active'
-            });
-            
-            for (const assignment of assignments) {
-              const faculty = await Faculty.findById(assignment.facultyId);
-              if (faculty && faculty.userId && faculty.userId.toString() !== currentUser._id.toString()) {
-                if (!facultyList.includes(faculty.userId)) {
-                  facultyList.push(faculty.userId);
-                }
-              }
-            }
-          }
-        } else {
-          // Global holiday - notify all faculty in department
-          const allFaculty = await Faculty.find({
-            department: currentUser.department,
-            status: 'active'
-          });
-          
-          facultyList.push(...allFaculty
-            .filter(f => f.userId && f.userId.toString() !== currentUser._id.toString())
-            .map(f => f.userId)
-            .filter((id, index, self) => self.indexOf(id) === index) // Remove duplicates
-          );
-        }
-
-        // Create notifications
-        const notificationMessage = scope === 'class'
-          ? `Holiday declared for ${batchYear} | ${semester} | Section ${section} on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`
-          : `Global holiday declared on ${new Date(holidayDateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}: ${reason}`;
-
-        const notifications = facultyList.map(userId => ({
-          userId,
-          message: notificationMessage,
-          type: 'holiday',
-          department: currentUser.department,
-          classRef: scope === 'class' ? `${batchYear}_${semester}_${section}` : null,
-          metadata: {
-            holidayId: holiday.holidayId,
-            date: holidayDateString,
-            reason,
-            scope,
-            declaredBy: currentUser.name
-          },
-          priority: 'medium',
-          sentBy: currentUser._id,
-          actionUrl: scope === 'class' ? `/faculty/class/${batchYear}_${semester}_${section}` : null
-        }));
-
-        if (notifications.length > 0) {
-          await Notification.insertMany(notifications);
-          console.log(`✅ Created ${notifications.length} notifications for holiday`);
-        }
-      } catch (error) {
-        console.error('❌ Error creating holiday notifications:', error);
-      }
-    })();
 
     res.status(201).json({
       status: 'success',
-      message: 'Holiday declared successfully',
+      message: 'Holiday request submitted successfully. Waiting for Principal approval.',
       data: {
-        holidayId: holiday.holidayId,
-        date: holiday.date,
-        reason: holiday.reason,
-        scope: holiday.scope,
-        batchYear: holiday.batchYear,
-        section: holiday.section,
-        semester: holiday.semester,
-        department: holiday.department,
-        declaredBy: currentUser.name,
-        createdAt: holiday.createdAt
+        requestId: approvalRequest.requestId,
+        date: holidayDateString,
+        reason: reason,
+        scope: scope,
+        batchYear: classDetails?.batchYear,
+        section: classDetails?.section,
+        semester: classDetails?.semester,
+        department: currentUser.department,
+        status: 'pending',
+        requestedBy: currentUser.name,
+        createdAt: approvalRequest.createdAt
       }
     });
 

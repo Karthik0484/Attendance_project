@@ -154,3 +154,40 @@ button {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
+
+/* Mobile-friendly select dropdown styling */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Ensure select options are readable on mobile */
+select option {
+  padding: 0.75rem;
+  font-size: 1rem;
+  background-color: white;
+  color: #1f2937;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 640px) {
+  select,
+  input[type="date"] {
+    min-height: 44px; /* iOS recommended touch target size */
+    font-size: 16px; /* Prevents zoom on iOS when focused */
+  }
+  
+  /* Ensure dropdown options are large enough on mobile */
+  select option {
+    padding: 12px;
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
+
+/* Touch manipulation for better mobile interaction */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

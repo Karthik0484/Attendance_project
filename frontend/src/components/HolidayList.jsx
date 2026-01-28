@@ -8,6 +8,7 @@ const HolidayList = ({
   refreshKey = 0 // Add refreshKey prop to force refresh
 }) => {
   const [holidays, setHolidays] = useState([]);
+  const [pendingHolidays, setPendingHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingHoliday, setEditingHoliday] = useState(null);
@@ -22,6 +23,7 @@ const HolidayList = ({
   useEffect(() => {
     if (batch && section && semester) {
       fetchHolidays();
+      fetchPendingHolidays();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch, section, semester, refreshKeyValue]); // All 4 dependencies always present
@@ -78,6 +80,44 @@ const HolidayList = ({
       setError(err.response?.data?.message || err.message || 'Failed to fetch holidays');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingHolidays = async () => {
+    try {
+      if (!classData) return;
+
+      // Normalize semester value - remove "Sem " prefix if present
+      let normalizedSemester = classData.semester;
+      if (typeof normalizedSemester === 'string' && normalizedSemester.startsWith('Sem ')) {
+        normalizedSemester = normalizedSemester.replace(/^Sem\s+/i, '');
+      }
+
+      // Fetch pending holiday requests from approvals API
+      const response = await apiFetch({
+        url: `/api/principal/approvals/pending?type=FACULTY_HOLIDAY_REQUEST`,
+        method: 'GET'
+      });
+
+      if (response.data.success) {
+        const allPending = response.data.data || [];
+        
+        // Filter pending holidays that match this class
+        const classPendingHolidays = allPending.filter(request => {
+          const details = request.details || {};
+          return (
+            details.batchYear === classData.batch &&
+            details.section === classData.section &&
+            details.semester === normalizedSemester
+          );
+        });
+        
+        console.log('📅 Pending holiday requests for class:', classPendingHolidays.length);
+        setPendingHolidays(classPendingHolidays);
+      }
+    } catch (err) {
+      console.error('❌ Error fetching pending holidays:', err);
+      // Don't set error for pending holidays - it's optional
     }
   };
 
@@ -169,11 +209,51 @@ const HolidayList = ({
           Declared Holidays
         </h3>
         <span className="text-sm text-gray-500">
-          {holidays.length} holiday{holidays.length !== 1 ? 's' : ''}
+          {holidays.length} approved, {pendingHolidays.length} pending
         </span>
       </div>
 
-      {holidays.length === 0 ? (
+      {/* Pending Holiday Requests */}
+      {pendingHolidays.length > 0 && (
+        <div className="space-y-2 mb-4">
+          <h4 className="text-sm font-medium text-gray-700">Pending Approval</h4>
+          {pendingHolidays.map((request) => {
+            const details = request.details || {};
+            return (
+              <div
+                key={request.requestId}
+                className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="text-orange-700 font-medium">
+                        {formatDate(details.date)}
+                      </span>
+                      <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded font-semibold">
+                        Pending Approval
+                      </span>
+                    </div>
+                    <p className="text-gray-700 text-sm font-medium">
+                      {details.reason || 'Holiday request'}
+                    </p>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Requested by {request.requestedBy?.name || 'Faculty'} on{' '}
+                      {new Date(request.requestedOn).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-orange-600 mt-1 font-medium">
+                      ⏳ Awaiting Principal approval
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Approved Holidays */}
+      {holidays.length === 0 && pendingHolidays.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           <div className="text-4xl mb-2">📅</div>
           <p>No holidays declared for this class</p>

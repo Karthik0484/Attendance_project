@@ -505,6 +505,21 @@ const PrincipalDashboard = () => {
             </button>
           </div>
 
+          {/* Approvals Dashboard */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center mb-4">
+              <span className="text-3xl mr-3">✅</span>
+              <h3 className="text-lg font-semibold">Approvals Dashboard</h3>
+            </div>
+            <p className="text-gray-600 mb-4">Review and approve institutional requests</p>
+            <button 
+              onClick={() => navigate('/principal/approvals')}
+              className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+            >
+              View Approvals
+            </button>
+          </div>
+
           {/* Faculty Performance */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center mb-4">
